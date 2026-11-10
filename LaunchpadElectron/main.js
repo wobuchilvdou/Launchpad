@@ -84,7 +84,7 @@ function sanitizeState(raw) {
     version: 3, recent: sanitizeIds(raw?.recent, 32), pinned: sanitizeIds(raw?.pinned, 64), folders,
     wallpaperId: typeof raw?.wallpaperId === 'string' && raw.wallpaperId.length <= 500 ? raw.wallpaperId : '',
     wallpaperIds: sanitizeIds(raw?.wallpaperIds, 200),
-    settings: { opacity: clamp(settings.opacity, 70, 100, 92), iconSize: clamp(settings.iconSize, 52, 96, 72), columns: clamp(settings.columns, 6, 14, 10), wallpaperBrightness: clamp(settings.wallpaperBrightness, 45, 140, 100), wallpaperMode: settings.wallpaperMode === 'custom' ? 'custom' : 'desktop', appearance: settings.appearance === 'glass' ? 'glass' : 'wallpaper', glassCard: settings.glassCard === 'card' ? 'card' : 'plain', launchAtLogin: Boolean(settings.launchAtLogin) },
+    settings: { opacity: clamp(settings.opacity, 70, 100, 92), iconSize: clamp(settings.iconSize, 52, 96, 72), columns: clamp(settings.columns, 6, 14, 10), wallpaperBrightness: clamp(settings.wallpaperBrightness, 45, 140, 100), wallpaperMode: settings.wallpaperMode === 'custom' ? 'custom' : 'desktop', appearance: settings.appearance === 'glass' ? 'glass' : 'wallpaper', glassCard: settings.glassCard === 'card' ? 'card' : 'plain', glassIntensity: clamp(settings.glassIntensity, 30, 100, 100), launchAtLogin: Boolean(settings.launchAtLogin) },
     window: sanitizeWindow(raw?.window),
   };
 }

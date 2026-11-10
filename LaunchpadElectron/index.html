@@ -16,7 +16,7 @@
   <div id="wallpaper" aria-hidden="true"><div id="wallpaperImage"></div><video id="wallpaperVideo" loop muted playsinline></video><iframe id="wallpaperWeb" sandbox="allow-scripts" referrerpolicy="no-referrer" title="Wallpaper"></iframe></div>
   <div class="aurora" aria-hidden="true"></div>
   <header>
-    <div class="brand"><span class="mark">✦</span><div><b>Launchpad</b><small>你的应用空间</small></div></div>
+    <div class="brand"><img class="mark" src="assets/icon.png" alt=""><div><b>Launchpad</b><small>你的应用空间</small></div></div>
     <label class="search"><span>⌕</span><input id="search" type="search" placeholder="搜索应用" autocomplete="off"><kbd>Ctrl K</kbd></label>
     <div class="tools"><button id="edit" type="button">整理</button><button id="folder" type="button">新建文件夹</button><button id="settings" type="button">设置</button><button id="sync" type="button">同步</button><button id="min" class="icon-button" type="button" aria-label="最小化">−</button><button id="close" class="icon-button" type="button" aria-label="关闭">×</button></div>
   </header>
@@ -35,6 +35,7 @@
     <div class="panel-head"><b>启动台设置</b><button id="settingsClose" class="icon-button" type="button" aria-label="关闭">×</button></div>
     <label class="setting">外观模式<select id="appearanceMode"><option value="wallpaper">壁纸模式</option><option value="glass">毛玻璃</option></select></label>
     <label class="setting">图标卡片<select id="glassCard"><option value="plain">无卡片</option><option value="card">半透明卡片</option></select></label>
+    <label class="setting">背景渐变强度 <output id="glassIntensityValue">100%</output><input id="glassIntensity" type="range" min="30" max="100" value="100"></label>
     <label class="setting">透明度 <output id="opacityValue">92%</output><input id="opacity" type="range" min="70" max="100" value="92"></label>
     <label class="setting">图标大小 <output id="iconSizeValue">72px</output><input id="iconSize" type="range" min="52" max="96" value="72"></label>
     <label class="setting">每行数量 <output id="columnsValue">10</output><input id="columns" type="range" min="6" max="14" value="10"></label>
