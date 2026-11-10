@@ -80,6 +80,35 @@ check('main: desktop:sync 复用 isLaunchableTarget', has(main, 'if (!isLaunchab
 check('main: desktop:sync 通过 readLnkTargets 读取目标', has(main, 'targets = readLnkTargets(DESKTOP_DIR)'));
 check('renderer: 同步提示包含跳过数', has(renderer, 'result.skipped'));
 
+// ---- 分页测量必须与内容无关（防止页数抖动回归） ----
+check('renderer: pageMetrics 结果缓存', has(renderer, 'if (!pageMetricsCache) pageMetricsCache = measurePageMetrics();'));
+check('renderer: 从 main 容器测量而非 grid', has(renderer, "document.querySelector('main')"));
+check('renderer: 分页缓存可失效', has(renderer, 'function clearPageMetrics'));
+check('renderer: resize 时清分页缓存', has(renderer, 'clearPageMetrics(); render();'));
+check('renderer: 加载完成后先隐藏 loading 再测量', has(renderer, "$('loading').hidden = true; clearPageMetrics(); render();"));
+
+// ---- 图标提取必须为高分辨率 ----
+check('main: PrivateExtractIcons', has(main, 'PrivateExtractIcons'));
+check('main: 图标缓存版本盐', has(main, 'ICON_CACHE_VERSION'));
+check('main: iconPathFor 使用版本盐', has(main, '${shortcutStamp}|${ICON_CACHE_VERSION}'));
+
+// ---- 点击反馈 ----
+check('renderer: 启动防重复', has(renderer, 'function launchBlocked'));
+check('renderer: 启动动画类', has(renderer, 'function startLaunching'));
+check('style: 按压缩放', has(style, '.card:active { transform: translateY(-3px) scale(.94);'));
+check('style: 启动回弹动画', has(style, '@keyframes card-launch-bounce'));
+
+// ---- 毛玻璃外观（与壁纸模式互斥） ----
+check('index: 外观模式选择器', has(index, 'id="appearanceMode"'));
+check('index: 图标卡片选择器', has(index, 'id="glassCard"'));
+check('renderer: applyAppearance', has(renderer, 'function applyAppearance'));
+check('renderer: 毛玻璃模式不使用壁纸', has(renderer, "state.settings.appearance === 'glass'"));
+check('main: sanitizeState 保留 appearance', has(main, "appearance: settings.appearance === 'glass' ? 'glass' : 'wallpaper'"));
+check('main: sanitizeState 保留 glassCard', has(main, "glassCard: settings.glassCard === 'card' ? 'card' : 'plain'"));
+check('style: 毛玻璃作用域', has(style, 'body.appearance-glass'));
+check('style: 半透明卡片样式', has(style, 'body.appearance-glass.glass-card'));
+check('renderer: 不依赖 localStorage 存外观', !renderer.includes('localStorage'));
+
 // ---- 常驻后台能力必须为空：关闭即退出，不保留托盘/全局热键 ----
 for (const needle of ['Tray', 'globalShortcut', 'nativeImage', 'displayBalloon']) {
   check(`main: 不包含 ${needle}（关闭即退出）`, !has(main, needle));

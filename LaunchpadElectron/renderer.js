@@ -1,6 +1,6 @@
 const state = {
   apps: [], wallpapers: [], recent: [], pinned: [], folders: {}, wallpaperId: '', wallpaperIds: [], diagnostics: null,
-  settings: { opacity: 92, iconSize: 72, columns: 10, wallpaperBrightness: 100, wallpaperMode: 'desktop', launchAtLogin: false },
+  settings: { opacity: 92, iconSize: 72, columns: 10, wallpaperBrightness: 100, wallpaperMode: 'desktop', launchAtLogin: false, appearance: 'wallpaper', glassCard: 'plain' },
   edit: false, selected: new Set(), dragId: '', query: '', filter: 'all', page: 0, saveTimer: null, orderQueue: Promise.resolve(), wallpaperRequest: 0, loginItemAvailable: null,
 };
 
@@ -89,8 +89,11 @@ function deleteFolder() { const name = $('folderPanel').dataset.folder; if (!nam
 function setEdit(enabled) { state.edit = enabled; state.selected.clear(); document.body.classList.toggle('editing', enabled); $('edit').textContent = enabled ? '完成' : '整理'; $('folder').disabled = !enabled; $('mode').textContent = enabled ? 'EDIT MODE / 整理' : 'APPLICATIONS / 应用'; $('title').textContent = enabled ? '整理应用' : '所有应用'; render(); }
 
 function stopWallpaperMedia() { const video = $('wallpaperVideo'); video.pause(); video.removeAttribute('src'); video.load(); video.classList.remove('wallpaper-cover'); video.hidden = true; const web = $('wallpaperWeb'); web.src = 'about:blank'; web.hidden = true; $('wallpaperImage').classList.remove('wallpaper-cover'); }
+
+function applyAppearance() { const glass = state.settings.appearance === 'glass'; document.body.classList.toggle('appearance-glass', glass); document.body.classList.toggle('glass-card', glass && state.settings.glassCard === 'card'); $('appearanceMode').value = glass ? 'glass' : 'wallpaper'; const select = $('glassCard'); select.value = state.settings.glassCard === 'card' ? 'card' : 'plain'; select.disabled = !glass; }
 async function applyWallpaper() {
   const request = ++state.wallpaperRequest;
+  if (state.settings.appearance === 'glass') { stopWallpaperMedia(); return; }
   const mode = state.settings.wallpaperMode; let item = null; let source = null; let mediaType = 'image';
   if (mode === 'desktop') source = await window.launchpad.getDesktopWallpaper(); else { item = state.wallpapers.find((wallpaper) => normalize(wallpaper.id) === normalize(state.wallpaperId)); source = item?.source || null; mediaType = item?.mediaType || 'image'; }
   if (request !== state.wallpaperRequest) return;
@@ -133,7 +136,7 @@ async function applyLoginItemSetting() {
   }
   reflectLoginItem();
 }
-async function load() { $('loading').hidden = false; $('empty').hidden = true; try { const result = await window.launchpad.listApps(); state.apps = result.apps; Object.assign(state, { recent: result.state.recent, pinned: result.state.pinned || [], folders: result.state.folders, wallpaperId: result.state.wallpaperId, wallpaperIds: result.state.wallpaperIds, settings: result.state.settings, diagnostics: result.diagnostics }); applySettings(); render(); updateDiagnostics(); await scanWallpapers(); } finally { $('loading').hidden = true; } }
+async function load() { $('loading').hidden = false; $('empty').hidden = true; try { const result = await window.launchpad.listApps(); state.apps = result.apps; Object.assign(state, { recent: result.state.recent, pinned: result.state.pinned || [], folders: result.state.folders, wallpaperId: result.state.wallpaperId, wallpaperIds: result.state.wallpaperIds, settings: { ...result.state.settings }, diagnostics: result.diagnostics }); applySettings(); applyAppearance(); $('loading').hidden = true; clearPageMetrics(); render(); updateDiagnostics(); await scanWallpapers(); } finally { $('loading').hidden = true; } }
 
 function updateDiagnostics() { const diagnostics = state.diagnostics; if (!diagnostics) return; const status = $('appStatus'); if (status) status.textContent = diagnostics.invalid || diagnostics.duplicates ? `已加载 ${diagnostics.valid} 个应用，跳过 ${diagnostics.invalid + diagnostics.duplicates} 个无效或重复项目` : `已加载 ${diagnostics.valid} 个应用`; const pathStatus = $('appPathStatus'); if (pathStatus) pathStatus.textContent = `应用目录：${diagnostics.appDirectory || '默认目录'}`; }
 
@@ -160,6 +163,8 @@ $('launchAtLogin').addEventListener('change', async (event) => {
     state.settings.launchAtLogin = previous; checkbox.checked = previous; scheduleStateSave(); showToast(`设置开机自启失败：${error.message}`, true);
   }
 });
+$('appearanceMode').addEventListener('change', async (event) => { state.settings.appearance = event.target.value === 'glass' ? 'glass' : 'wallpaper'; applyAppearance(); scheduleStateSave(); await applyWallpaper(); });
+$('glassCard').addEventListener('change', (event) => { state.settings.glassCard = event.target.value === 'card' ? 'card' : 'plain'; applyAppearance(); scheduleStateSave(); });
 $('wallpaperMode').addEventListener('change', async (event) => { state.settings.wallpaperMode = event.target.value; renderWallpapers(); scheduleStateSave(); await applyWallpaper(); });
 $('wallpaperSelect').addEventListener('change', async (event) => { state.wallpaperId = event.target.value; scheduleStateSave(); await applyWallpaper(); }); $('refreshWallpapers').addEventListener('click', scanWallpapers); $('refreshDesktopWallpaper').addEventListener('click', applyWallpaper);
 $('saveWallpaperLibrary').addEventListener('click', async () => { state.wallpaperIds = [...document.querySelectorAll('#wallpaperLibraryPicker input:checked')].map((input) => input.value); if (!state.wallpaperIds.some((id) => normalize(id) === normalize(state.wallpaperId))) state.wallpaperId = state.wallpaperIds[0] || ''; renderWallpapers(); scheduleStateSave(); await applyWallpaper(); showToast('我的壁纸库已保存。'); });
