@@ -22,6 +22,7 @@ const ICON_DIR = path.join(app.getPath('temp'), 'ReasonixElectronIcons');
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif']);
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.m4v']);
 const MAX_ICON_CACHE_FILES = 400;
+const ICON_CACHE_VERSION = 'icons-v2-256';
 const MAX_WALLPAPERS = 1000;
 
 let mainWindow;
@@ -114,7 +115,7 @@ function iconPathFor(shortcut, target) {
   let targetStamp = ''; let shortcutStamp = '';
   try { targetStamp = fs.statSync(target).mtimeMs.toString(); } catch {}
   try { shortcutStamp = fs.statSync(shortcut).mtimeMs.toString(); } catch {}
-  const hash = crypto.createHash('sha1').update(`${shortcut}|${target}|${targetStamp}|${shortcutStamp}`).digest('hex');
+  const hash = crypto.createHash('sha1').update(`${shortcut}|${target}|${targetStamp}|${shortcutStamp}|${ICON_CACHE_VERSION}`).digest('hex');
   return path.join(ICON_DIR, `icon-${hash}.png`);
 }
 function cleanupIconCache() {
@@ -127,7 +128,7 @@ function extractIcons(items) {
   if (!ensureDirectory(ICON_DIR)) return;
   const missing = items.filter((item) => !fs.existsSync(item.iconPath));
   if (!missing.length) return;
-  const script = `$items=$env:LAUNCHPAD_PAYLOAD|ConvertFrom-Json;Add-Type -AssemblyName System.Drawing;foreach($item in $items){$icon=$null;try{$icon=[Drawing.Icon]::ExtractAssociatedIcon($item.target)}catch{};if(-not $icon){try{$icon=[Drawing.Icon]::ExtractAssociatedIcon($item.shortcut)}catch{}};if($icon){try{$bitmap=$icon.ToBitmap();$bitmap.Save($item.output,[Drawing.Imaging.ImageFormat]::Png);$bitmap.Dispose()}catch{};$icon.Dispose()}}`;
+  const script = `$items=$env:LAUNCHPAD_PAYLOAD|ConvertFrom-Json;Add-Type -AssemblyName System.Drawing;$q=[char]34;$sig='using System;using System.Runtime.InteropServices;public class IconEx{[DllImport(~user32.dll~,CharSet=CharSet.Unicode)]public static extern int PrivateExtractIcons(string lpszFile,int nIconIndex,int cxIcon,int cyIcon,IntPtr[] phicon,uint[] piconid,uint nIcons,uint flags);[DllImport(~user32.dll~)]public static extern bool DestroyIcon(IntPtr hIcon);}'.Replace('~',$q);Add-Type -TypeDefinition $sig -ReferencedAssemblies System.Drawing;foreach($item in $items){$done=$false;foreach($size in 256,48,32){if($done){continue};$h=New-Object IntPtr[] 1;$iconId=New-Object uint32[] 1;try{$n=[IconEx]::PrivateExtractIcons($item.target,0,$size,$size,$h,$iconId,1,0)}catch{$n=0};if($n -gt 0 -and $h[0] -ne [IntPtr]::Zero){$tmp=$item.output+'.tmp';try{$ico=[System.Drawing.Icon]::FromHandle($h[0]);$bmp=$ico.ToBitmap();$bmp.Save($tmp,[Drawing.Imaging.ImageFormat]::Png);$bmp.Dispose();$ico.Dispose();Move-Item -LiteralPath $tmp -Destination $item.output -Force;$done=$true}catch{Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue};[void][IconEx]::DestroyIcon($h[0])}};if(-not $done){$ico=$null;try{$ico=[Drawing.Icon]::ExtractAssociatedIcon($item.shortcut)}catch{};if($ico){$tmp=$item.output+'.tmp';try{$bmp=$ico.ToBitmap();$bmp.Save($tmp,[Drawing.Imaging.ImageFormat]::Png);$bmp.Dispose();Move-Item -LiteralPath $tmp -Destination $item.output -Force;$done=$true}catch{Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue};$ico.Dispose()}}}`;
   try { runPowerShell(script, missing.map((item) => ({ shortcut: item.file, target: item.target, output: item.iconPath }))); } catch {}
   cleanupIconCache();
 }
