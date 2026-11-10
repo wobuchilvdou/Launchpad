@@ -51,12 +51,13 @@ function elementSpan(element) { if (!element || element.hidden || getComputedSty
 function measuredCardHeight() { const card = grid.querySelector('.card'); return card ? card.getBoundingClientRect().height : 118; }
 function measurePageMetrics() { const container = document.querySelector('main'); const containerStyle = getComputedStyle(container); const gridStyle = getComputedStyle(grid); const rowGap = parseFloat(gridStyle.rowGap) || 0; const columnGap = parseFloat(gridStyle.columnGap) || 0; const padding = (parseFloat(containerStyle.paddingTop) || 0) + (parseFloat(containerStyle.paddingBottom) || 0); const occupied = [document.querySelector('.heading'), $('favorites'), $('loading'), $('empty'), $('appStatus'), document.querySelector('.pager')].reduce((sum, element) => sum + elementSpan(element), 0); const available = Math.max(0, container.clientHeight - padding - occupied); const width = grid.clientWidth || window.innerWidth; const columns = Math.max(1, Math.min(state.settings.columns, Math.floor((width + columnGap) / (72 + columnGap)))); const rows = Math.max(1, Math.min(8, Math.floor((available + rowGap) / (measuredCardHeight() + rowGap)))); return { perPage: columns * rows }; }
 function pageMetrics(total) { if (!pageMetricsCache) pageMetricsCache = measurePageMetrics(); return { perPage: pageMetricsCache.perPage, pages: Math.max(1, Math.ceil(total / pageMetricsCache.perPage)) }; }
-function render() {
+function render(direction = 0) {
   const apps = visibleApps(); const folders = Object.keys(state.folders).filter((name) => !state.query || name.toLocaleLowerCase('zh-CN').includes(state.query.toLocaleLowerCase('zh-CN'))).map((name) => ({ folder: name }));
   const list = [...folders, ...apps]; const metrics = pageMetrics(list.length); state.page = Math.min(state.page, metrics.pages - 1);
   grid.replaceChildren(); list.slice(state.page * metrics.perPage, (state.page + 1) * metrics.perPage).forEach((item, index) => grid.append(item.folder ? createFolderCard(item.folder, index) : createAppCard(item, index)));
+  if (direction) { const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; grid.style.animation = 'none'; void grid.offsetWidth; grid.style.animation = `${reduced ? 'grid-fade' : `grid-slide-${direction > 0 ? 'left' : 'right'}`} ${reduced ? '.2s' : '.38s'} cubic-bezier(.25,.8,.35,1)`; grid.addEventListener('animationend', () => { grid.style.animation = ''; }, { once: true }); }
   $('empty').hidden = list.length > 0; $('count').textContent = `${list.length} 项`; $('pageLabel').textContent = `第 ${state.page + 1} / ${metrics.pages} 页`; $('prevPage').disabled = state.page === 0; $('nextPage').disabled = state.page >= metrics.pages - 1;
-  const dots = $('dots'); dots.replaceChildren(); for (let index = 0; index < metrics.pages; index += 1) { const dot = document.createElement('button'); dot.type = 'button'; dot.className = index === state.page ? 'active' : ''; dot.setAttribute('aria-label', `第 ${index + 1} 页`); dot.addEventListener('click', () => { state.page = index; render(); }); dots.append(dot); }
+  const dots = $('dots'); dots.replaceChildren(); for (let index = 0; index < metrics.pages; index += 1) { const dot = document.createElement('button'); dot.type = 'button'; dot.className = index === state.page ? 'active' : ''; dot.setAttribute('aria-label', `第 ${index + 1} 页`); dot.addEventListener('click', () => { const previous = state.page; state.page = index; render(index > previous ? 1 : -1); }); dots.append(dot); }
   renderFavorites();
 }
 function renderFavorites() { const ids = [...state.pinned, ...state.recent].filter((id, index, all) => all.findIndex((candidate) => normalize(candidate) === normalize(id)) === index).slice(0, 8); const favorites = ids.map((id) => state.apps.find((appItem) => normalize(appItem.id) === normalize(id))).filter(Boolean); $('favorites').hidden = !favorites.length; $('favorites').querySelector('small').textContent = state.pinned.length ? '固定与最近使用' : '最近使用'; const wrap = $('favoriteGrid'); wrap.replaceChildren(); favorites.forEach((appItem, index) => wrap.append(createAppCard(appItem, index))); }
@@ -142,7 +143,7 @@ function updateDiagnostics() { const diagnostics = state.diagnostics; if (!diagn
 
 $('search').addEventListener('input', (event) => { state.query = event.target.value; state.page = 0; render(); });
 document.querySelectorAll('.filter').forEach((button) => button.addEventListener('click', () => { document.querySelectorAll('.filter').forEach((item) => item.classList.toggle('active', item === button)); state.filter = button.dataset.filter; state.page = 0; render(); }));
-$('prevPage').addEventListener('click', () => { state.page = Math.max(0, state.page - 1); render(); }); $('nextPage').addEventListener('click', () => { state.page += 1; render(); });
+$('prevPage').addEventListener('click', () => { state.page = Math.max(0, state.page - 1); render(-1); }); $('nextPage').addEventListener('click', () => { state.page += 1; render(1); });
 $('edit').addEventListener('click', () => setEdit(!state.edit)); $('folder').addEventListener('click', createFolder); $('folderClose').addEventListener('click', () => { $('folderPanel').hidden = true; }); $('folderRename').addEventListener('click', renameFolder); $('folderDelete').addEventListener('click', deleteFolder);
 $('settings').addEventListener('click', () => { $('settingsPanel').hidden = false; }); $('settingsClose').addEventListener('click', () => { $('settingsPanel').hidden = true; }); $('min').addEventListener('click', () => window.launchpad.minimize()); $('close').addEventListener('click', () => window.launchpad.close());
 let syncBusy = false;
@@ -177,7 +178,7 @@ window.addEventListener('resize', () => { clearPageMetrics(); render(); }); docu
   }
   if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && !document.activeElement?.classList.contains('card') && !(document.activeElement instanceof HTMLInputElement) && !(document.activeElement instanceof HTMLSelectElement) && !$('nameDialog').matches(':not([hidden])')) {
     const label = $('pageLabel').textContent; const match = label.match(/第 (\d+) \/ (\d+) 页/); const pages = match ? Number(match[2]) : 1;
-    if (pages > 1) { event.preventDefault(); const current = state.page; state.page = event.key === 'ArrowRight' ? Math.min(pages - 1, state.page + 1) : Math.max(0, state.page - 1); if (state.page !== current) render(); }
+    if (pages > 1) { event.preventDefault(); const current = state.page; state.page = event.key === 'ArrowRight' ? Math.min(pages - 1, state.page + 1) : Math.max(0, state.page - 1); if (state.page !== current) render(event.key === 'ArrowRight' ? 1 : -1); }
   }
 });
 load().catch((error) => showToast(`启动失败：${error.message}`, true));

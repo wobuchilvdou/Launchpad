@@ -39,7 +39,7 @@ header { height: 82px; padding: 16px 30px; display: flex; align-items: center; g
 .tools button:disabled { opacity: .5; cursor: wait; }
 .icon-button { width: 34px; padding: 0 !important; font-size: 20px; }
 .tools #close:hover { background: rgba(236, 78, 96, .36); }
-main { height: calc(100% - 82px); padding: 30px 42px; overflow: auto; }
+main { height: calc(100% - 82px); padding: 30px 42px; overflow: auto; overflow-x: hidden; }
 .heading { display: flex; justify-content: space-between; align-items: end; max-width: 1420px; margin: 0 auto 18px; }
 .heading small { color: #b7c9fa; font-size: 11px; letter-spacing: 2px; }
 .heading h1 { margin: 8px 0 0; font-size: 30px; }
@@ -60,6 +60,9 @@ main { height: calc(100% - 82px); padding: 30px 42px; overflow: auto; }
 .card:active { transform: translateY(-3px) scale(.94); transition-duration: .06s; }
 .card.launching { animation: card-launch-bounce .32s cubic-bezier(.34, 1.56, .64, 1); }
 @keyframes card-launch-bounce { 0% { transform: translateY(-3px) scale(.94); } 45% { transform: translateY(-3px) scale(1.03); } 100% { transform: translateY(-3px) scale(1); } }
+@keyframes grid-slide-left { from { opacity: 0; transform: translateX(120px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes grid-slide-right { from { opacity: 0; transform: translateX(-120px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes grid-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .card:active { transform: none; opacity: .72; transition-duration: .06s; }
   .card.launching { animation: none; opacity: .72; }
