@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: file:; media-src 'self' file:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src file:;">
+  <title>Launchpad</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .aurora { background: rgba(4, 8, 18, calc(var(--window-opacity) * .28)); }
+    header { background: rgba(9, 14, 27, var(--window-opacity)); }
+    #loading { color: var(--muted); text-align: center; padding: 70px; }
+  </style>
+</head>
+<body>
+  <div id="wallpaper" aria-hidden="true"><div id="wallpaperImage"></div><video id="wallpaperVideo" loop muted playsinline></video><iframe id="wallpaperWeb" sandbox="allow-scripts" referrerpolicy="no-referrer" title="Wallpaper"></iframe></div>
+  <div class="aurora" aria-hidden="true"></div>
+  <header>
+    <div class="brand"><span class="mark">✦</span><div><b>Launchpad</b><small>你的应用空间</small></div></div>
+    <label class="search"><span>⌕</span><input id="search" type="search" placeholder="搜索应用" autocomplete="off"><kbd>Ctrl K</kbd></label>
+    <div class="tools"><button id="edit" type="button">整理</button><button id="folder" type="button">新建文件夹</button><button id="settings" type="button">设置</button><button id="sync" type="button">同步</button><button id="min" class="icon-button" type="button" aria-label="最小化">−</button><button id="close" class="icon-button" type="button" aria-label="关闭">×</button></div>
+  </header>
+  <main>
+    <div class="heading"><div><small id="mode">APPLICATIONS / 应用</small><h1 id="title">所有应用</h1></div><div class="filters"><button class="filter active" data-filter="all" type="button">全部</button><button class="filter" data-filter="recent" type="button">最近</button><button class="filter" data-filter="work" type="button">工作</button><button class="filter" data-filter="creative" type="button">创作</button><span id="count"></span></div></div>
+    <section id="favorites" class="favorites" hidden><small>固定与最近使用</small><div id="favoriteGrid"></div></section>
+    <section id="grid" aria-live="polite"></section>
+    <p id="loading">正在加载应用…</p>
+    <p id="empty" hidden>没有找到匹配的应用</p>
+    <p id="appStatus" class="app-status" role="status"></p>
+    <nav class="pager" aria-label="分页"><button id="prevPage" type="button" title="上一页">‹</button><div id="dots"></div><span id="pageLabel"></span><button id="nextPage" type="button" title="下一页">›</button></nav>
+  </main>
+  <div id="trash" aria-label="回收站"><span>♙</span><small>拖到这里移入回收站</small></div>
+  <aside id="folderPanel" class="panel" hidden><div class="panel-head"><b id="folderTitle">文件夹</b><div><button id="folderRename" type="button">重命名</button><button id="folderDelete" type="button">删除</button><button id="folderClose" class="icon-button" type="button" aria-label="关闭">×</button></div></div><div id="folderGrid"></div></aside>
+  <aside id="settingsPanel" class="panel settings-panel" hidden>
+    <div class="panel-head"><b>启动台设置</b><button id="settingsClose" class="icon-button" type="button" aria-label="关闭">×</button></div>
+    <label class="setting">透明度 <output id="opacityValue">92%</output><input id="opacity" type="range" min="70" max="100" value="92"></label>
+    <label class="setting">图标大小 <output id="iconSizeValue">72px</output><input id="iconSize" type="range" min="52" max="96" value="72"></label>
+    <label class="setting">每行数量 <output id="columnsValue">10</output><input id="columns" type="range" min="6" max="14" value="10"></label>
+    <label class="setting">背景亮度 <output id="wallpaperBrightnessValue">100%</output><input id="wallpaperBrightness" type="range" min="45" max="140" value="100"></label>
+    <section id="wallpaperControls">
+      <label class="setting">背景来源<select id="wallpaperMode"><option value="desktop">跟随系统桌面壁纸</option><option value="custom">我的 Wallpaper 壁纸</option></select></label>
+      <label id="wallpaperPicker" class="setting">我的壁纸<select id="wallpaperSelect"></select></label>
+      <button id="refreshDesktopWallpaper" class="secondary" type="button">刷新当前桌面壁纸</button>
+      <details id="wallpaperManager"><summary>管理本地 Wallpaper 壁纸</summary><p class="muted">仅勾选日常需要使用的项目。缩略图不会作为壁纸使用。</p><div id="wallpaperLibraryPicker"></div><button id="saveWallpaperLibrary" class="secondary" type="button">保存我的壁纸库</button></details>
+      <button id="refreshWallpapers" class="secondary" type="button">重新扫描 Steam 下载内容</button>
+      <p id="wallpaperStatus" class="status" role="status"></p>
+      <p id="appPathStatus" class="status" role="status"></p>
+    </section>
+  </aside>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="renderer.js"></script>
+</body>
+</html>
