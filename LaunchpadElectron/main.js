@@ -5,6 +5,13 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 
+// 单实例锁：必须在 app.whenReady() 之前。第二个实例直接退出，由第一个实例接管。
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+  return;
+}
+app.setAppUserModelId('com.launchpad.electron');
+
 const LEGACY_APP_DIR = 'D:\\Desktop\\QuickApps';
 const DESKTOP_DIR = process.env.LAUNCHPAD_DESKTOP_DIR || (fs.existsSync('D:\\Desktop') ? 'D:\\Desktop' : path.join(process.env.USERPROFILE || 'C:\\Users\\Default', 'Desktop'));
 const APP_DIR = process.env.LAUNCHPAD_APP_DIR || (fs.existsSync(LEGACY_APP_DIR) ? LEGACY_APP_DIR : path.join(DESKTOP_DIR, 'QuickApps'));
@@ -76,7 +83,7 @@ function sanitizeState(raw) {
     version: 3, recent: sanitizeIds(raw?.recent, 32), pinned: sanitizeIds(raw?.pinned, 64), folders,
     wallpaperId: typeof raw?.wallpaperId === 'string' && raw.wallpaperId.length <= 500 ? raw.wallpaperId : '',
     wallpaperIds: sanitizeIds(raw?.wallpaperIds, 200),
-    settings: { opacity: clamp(settings.opacity, 70, 100, 92), iconSize: clamp(settings.iconSize, 52, 96, 72), columns: clamp(settings.columns, 6, 14, 10), wallpaperBrightness: clamp(settings.wallpaperBrightness, 45, 140, 100), wallpaperMode: settings.wallpaperMode === 'custom' ? 'custom' : 'desktop' },
+    settings: { opacity: clamp(settings.opacity, 70, 100, 92), iconSize: clamp(settings.iconSize, 52, 96, 72), columns: clamp(settings.columns, 6, 14, 10), wallpaperBrightness: clamp(settings.wallpaperBrightness, 45, 140, 100), wallpaperMode: settings.wallpaperMode === 'custom' ? 'custom' : 'desktop', launchAtLogin: Boolean(settings.launchAtLogin) },
     window: sanitizeWindow(raw?.window),
   };
 }
@@ -242,14 +249,21 @@ async function wallpaperLibrary(force = false) {
 
 function createWindow() {
   const savedWindow = loadState().window;
-  mainWindow = new BrowserWindow({ ...savedWindow.bounds, width: savedWindow.bounds.width, height: savedWindow.bounds.height, minWidth: 860, minHeight: 620, show: false, backgroundColor: '#0b1020', autoHideMenuBar: true, title: 'Launchpad', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: false } });
+  mainWindow = new BrowserWindow({ ...savedWindow.bounds, width: savedWindow.bounds.width, height: savedWindow.bounds.height, minWidth: 860, minHeight: 620, show: false, backgroundColor: '#0b1020', autoHideMenuBar: true, title: 'Launchpad', icon: path.join(__dirname, 'assets', 'icon.png'), webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: false } });
   const localUrl = pathToFileURL(path.join(__dirname, 'index.html')).href;
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
   mainWindow.webContents.on('will-navigate', (event, url) => { if (url !== localUrl) event.preventDefault(); });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  const saveWindow = () => { clearTimeout(windowSaveTimer); windowSaveTimer = setTimeout(() => { const bounds = mainWindow.isMaximized() ? mainWindow.getNormalBounds() : mainWindow.getBounds(); saveState({ window: { bounds, maximized: mainWindow.isMaximized() } }); }, 250); };
-  mainWindow.on('resize', saveWindow); mainWindow.on('move', saveWindow); mainWindow.on('close', saveWindow);
-  mainWindow.once('ready-to-show', () => { if (savedWindow.maximized) mainWindow.maximize(); mainWindow.show(); });
+  const saveWindowNow = () => {
+    clearTimeout(windowSaveTimer); windowSaveTimer = null;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const bounds = mainWindow.isMaximized() ? mainWindow.getNormalBounds() : mainWindow.getBounds();
+    try { saveState({ window: { bounds, maximized: mainWindow.isMaximized() } }); } catch (error) { console.warn(`保存窗口位置失败：${error.message}`); }
+  };
+  const saveWindow = () => { clearTimeout(windowSaveTimer); windowSaveTimer = setTimeout(saveWindowNow, 250); };
+  mainWindow.on('resize', saveWindow); mainWindow.on('move', saveWindow); mainWindow.on('close', saveWindowNow);
+  mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.once('ready-to-show', () => { mainWindow.maximize(); mainWindow.show(); });
 }
 
 ipcMain.handle('apps:list', (event) => { assertTrustedEvent(event); const apps = appCacheLoaded ? appCache : readApps(); return { apps, state: loadState(), diagnostics: scanDiagnostics }; });
@@ -262,8 +276,28 @@ ipcMain.handle('app:recycle', (event, id) => { assertTrustedEvent(event); const 
 ipcMain.handle('desktop:sync', (event) => { assertTrustedEvent(event); let moved = 0; let failed = 0; for (const entry of fs.readdirSync(DESKTOP_DIR, { withFileTypes: true })) { if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.lnk') || /^(applauncher|launchpad|reasonixlaunchpad)/i.test(path.basename(entry.name, '.lnk'))) continue; try { const source = path.join(DESKTOP_DIR, entry.name); let target = path.join(APP_DIR, entry.name); for (let index = 2; fs.existsSync(target); index += 1) target = path.join(APP_DIR, `${path.basename(entry.name, '.lnk')} (${index}).lnk`); fs.renameSync(source, target); moved += 1; } catch { failed += 1; } } appCacheLoaded = false; return { moved, failed }; });
 ipcMain.handle('wallpaper:desktop', (event) => { assertTrustedEvent(event); return desktopWallpaper(); });
 ipcMain.handle('wallpaper:list', (event, force) => { assertTrustedEvent(event); return wallpaperLibrary(Boolean(force)); });
+ipcMain.handle('settings:login-item', (event, options) => {
+  assertTrustedEvent(event);
+  if (!app.isPackaged) return { enabled: false, available: false };
+  if (options && typeof options === 'object' && typeof options.enabled === 'boolean') {
+    app.setLoginItemSettings({ openAtLogin: options.enabled, path: process.execPath, args: [] });
+  }
+  return { enabled: Boolean(app.getLoginItemSettings().openAtLogin), available: true };
+});
 ipcMain.handle('window:minimize', (event) => { assertTrustedEvent(event); mainWindow.minimize(); });
 ipcMain.handle('window:close', (event) => { assertTrustedEvent(event); mainWindow.close(); });
 
-app.whenReady().then(() => { createWindow(); app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); }); });
+app.on('second-instance', () => {
+  if (!mainWindow) { createWindow(); return; }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+});
+app.whenReady().then(() => {
+  createWindow();
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    else { mainWindow.show(); mainWindow.focus(); }
+  });
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

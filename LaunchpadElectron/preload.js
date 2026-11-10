@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('launchpad', {
   syncDesktop: () => ipcRenderer.invoke('desktop:sync'),
   getDesktopWallpaper: () => ipcRenderer.invoke('wallpaper:desktop'),
   listWallpapers: (force = false) => ipcRenderer.invoke('wallpaper:list', Boolean(force)),
+  getLoginItem: () => ipcRenderer.invoke('settings:login-item'),
+  setLoginItem: (enabled) => ipcRenderer.invoke('settings:login-item', { enabled: Boolean(enabled) }),
   minimize: () => ipcRenderer.invoke('window:minimize'),
   close: () => ipcRenderer.invoke('window:close'),
 });

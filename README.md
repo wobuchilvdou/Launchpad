@@ -9,12 +9,15 @@
 - **搜索**：按应用名称与目标路径实时过滤，`Ctrl + K` 聚焦搜索框
 - **分类筛选**：全部 / 最近 / 工作 / 创作
 - **分页**：自动按窗口尺寸计算每页容量，支持左右翻页与底部圆点
-- **整理模式**：拖拽排序、多选建文件夹、文件夹重命名与删除
+- **整理模式**：拖拽排序、多选建文件夹、文件夹重命名与删除（内联对话框，Enter 提交 / Esc 取消）
 - **回收站**：拖入回收站只把 `.lnk` 移入 Windows 回收站，不卸载软件
 - **桌面同步**：把桌面上的快捷方式批量移入应用目录
 - **壁纸**：跟随系统桌面壁纸，或单独选择 Wallpaper Engine 本地壁纸（图片 / 视频 / Web）
 - **外观设置**：窗口透明度、图标大小、每行数量、壁纸亮度
-- **可访问性**：键盘导航、`prefers-reduced-motion` 支持
+- **窗口行为**：启动即最大化；关闭窗口直接退出，不常驻后台、不保留托盘
+- **单实例**：重复启动会激活已有窗口
+- **开机自启**：设置面板中可开启，默认关闭（仅打包版生效）
+- **可访问性**：键盘方向键导航、卡片焦点可见
 
 ## 技术栈
 
@@ -35,9 +38,12 @@ Launchpad/
 │  ├─ style.css                      样式与动画
 │  ├─ package.json                   npm 脚本与依赖
 │  ├─ Set-DesktopElectronShortcut.ps1 生成桌面快捷方式
+│  ├─ assets/icon.png                应用与窗口图标
 │  ├─ assets/social/                 项目封面图
 │  └─ test/smoke.js                  冒烟测试
-├─ verify_electron_launchpad.js      结构与安全约束校验
+├─ verify_electron_launchpad.js      验证总入口（依次运行下面两个）
+├─ verify_source.js                  源码静态一致性检查（不依赖 dist）
+├─ verify_packaged.js                打包产物一致性检查（dist 缺失时跳过）
 ├─ verify_chinese_shortcut.js        中文快捷方式编码校验
 ├─ Launchpad项目说明书.md            详细项目说明书
 └─ reasonix.toml                     本地工作区配置
@@ -62,18 +68,22 @@ npm start
 在 `LaunchpadElectron/` 下执行：
 
 ```powershell
-npm run check    # 语法检查 main.js / preload.js / renderer.js
-npm test         # 冒烟测试
-npm run verify   # check + test
-npm run package  # 打包到 dist/Launchpad-win32-x64/
+npm run check           # 语法检查 main.js / preload.js / renderer.js
+npm test                # 冒烟测试
+npm run verify          # check + test + 源码静态检查
+npm run verify:source   # 仅源码静态检查
+npm run verify:packaged # 仅打包产物检查（dist 缺失时跳过）
+npm run package         # 打包到 dist/Launchpad-win32-x64/
 ```
 
 在仓库根目录执行：
 
 ```powershell
-node verify_electron_launchpad.js
-node verify_chinese_shortcut.js
+node verify_electron_launchpad.js   # 依次运行 verify_source.js 与 verify_packaged.js
+node verify_chinese_shortcut.js     # 需要本机存在 D:\Desktop\QuickApps\钉钉.lnk
 ```
+
+`verify_source.js` 做的是动态一致性检查，而不是字符串匹配：它会比对 `main.js` 的 IPC 通道集合与 `preload.js` 的 `invoke` 集合是否完全相等、`renderer.js` 引用的每个 `$('id')` 是否都存在于 `index.html`、入站通道数量是否与 `assertTrustedEvent` 调用数一致。
 
 打包完成后可运行 `Set-DesktopElectronShortcut.ps1` 更新桌面快捷方式。
 

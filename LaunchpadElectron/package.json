@@ -8,7 +8,9 @@
     "start": "electron .",
     "check": "node --check main.js && node --check preload.js && node --check renderer.js",
     "test": "node test/smoke.js",
-    "verify": "npm run check && npm test",
+    "verify": "npm run check && npm test && npm run verify:source",
+    "verify:source": "node ../verify_source.js",
+    "verify:packaged": "node ../verify_packaged.js",
     "package": "electron-packager . Launchpad --platform=win32 --arch=x64 --out=dist --overwrite --prune=true"
   },
   "devDependencies": {

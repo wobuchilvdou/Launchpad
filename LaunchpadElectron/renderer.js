@@ -1,7 +1,7 @@
 const state = {
   apps: [], wallpapers: [], recent: [], pinned: [], folders: {}, wallpaperId: '', wallpaperIds: [], diagnostics: null,
-  settings: { opacity: 92, iconSize: 72, columns: 10, wallpaperBrightness: 100, wallpaperMode: 'desktop' },
-  edit: false, selected: new Set(), dragId: '', query: '', filter: 'all', page: 0, saveTimer: null, orderQueue: Promise.resolve(), wallpaperRequest: 0,
+  settings: { opacity: 92, iconSize: 72, columns: 10, wallpaperBrightness: 100, wallpaperMode: 'desktop', launchAtLogin: false },
+  edit: false, selected: new Set(), dragId: '', query: '', filter: 'all', page: 0, saveTimer: null, orderQueue: Promise.resolve(), wallpaperRequest: 0, loginItemAvailable: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -55,9 +55,27 @@ function scheduleStateSave() { clearTimeout(state.saveTimer); state.saveTimer = 
 async function launchApp(appItem) { try { await window.launchpad.launchApp(appItem.id); state.recent = [appItem.id, ...state.recent.filter((id) => normalize(id) !== normalize(appItem.id))].slice(0, 8); scheduleStateSave(); renderFavorites(); } catch (error) { showToast(`无法启动 ${appItem.name}：${error.message}`, true); } }
 async function moveBefore(from, to) { if (!from || from === to) return; const fromIndex = state.apps.findIndex((item) => normalize(item.id) === normalize(from)); const toIndex = state.apps.findIndex((item) => normalize(item.id) === normalize(to)); if (fromIndex < 0 || toIndex < 0) return; const [item] = state.apps.splice(fromIndex, 1); state.apps.splice(state.apps.findIndex((candidate) => normalize(candidate.id) === normalize(to)), 0, item); render(); const ids = state.apps.map((appItem) => appItem.id); state.orderQueue = state.orderQueue.then(() => window.launchpad.saveOrder(ids)).catch((error) => showToast(`保存排序失败：${error.message}`, true)); await state.orderQueue; }
 function openFolder(name) { $('folderTitle').textContent = name; $('folderPanel').dataset.folder = name; const content = $('folderGrid'); content.replaceChildren(); folderApps(name).forEach((appItem, index) => content.append(createAppCard(appItem, index))); $('folderPanel').hidden = false; }
-function validFolderName(value) { const clean = String(value || '').trim(); if (!clean || clean.length > 40 || /[\\/:*?"<>|]/.test(clean)) { showToast('文件夹名称不能为空，且不能超过 40 个字符或包含 Windows 保留符号。', true); return null; } return clean; }
-async function createFolder() { if (!state.edit || state.selected.size < 2) return showToast('请先点击“整理”，再选择至少两个应用。', true); const clean = validFolderName(window.prompt('文件夹名称', '新文件夹')); if (!clean) return; if (Object.keys(state.folders).some((existing) => normalize(existing) === normalize(clean))) return showToast('已存在同名文件夹。', true); state.folders[clean] = [...state.selected]; state.selected.clear(); scheduleStateSave(); render(); }
-async function renameFolder() { const oldName = $('folderPanel').dataset.folder; const clean = validFolderName(window.prompt('文件夹名称', oldName)); if (!clean || clean === oldName) return; if (Object.keys(state.folders).some((name) => normalize(name) === normalize(clean) && name !== oldName)) return showToast('已存在同名文件夹。', true); state.folders[clean] = state.folders[oldName]; delete state.folders[oldName]; $('folderPanel').hidden = true; scheduleStateSave(); render(); }
+const folderNameError = '文件夹名称不能为空，且不能超过 40 个字符或包含 Windows 保留符号。';
+function validFolderName(value, silent = false) { const clean = String(value || '').trim(); if (!clean || clean.length > 40 || /[\\/:*?"<>|]/.test(clean)) { if (!silent) showToast(folderNameError, true); return null; } return clean; }
+let nameDialogResolve = null; let nameDialogOpener = null;
+function closeNameDialog(result) { if (!nameDialogResolve) return; const resolve = nameDialogResolve; nameDialogResolve = null; $('nameDialog').hidden = true; const opener = nameDialogOpener; nameDialogOpener = null; if (opener && document.contains(opener)) opener.focus(); resolve(result); }
+function submitNameDialog() { if (!nameDialogResolve) return; const clean = validFolderName($('nameInput').value, true); if (!clean) { $('nameError').textContent = folderNameError; $('nameInput').focus(); return; } closeNameDialog(clean); }
+async function askFolderName(initialValue = '') {
+  if (nameDialogResolve) return null;
+  const dialog = $('nameDialog'); const input = $('nameInput');
+  nameDialogOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  $('nameError').textContent = '';
+  input.value = String(initialValue ?? '');
+  dialog.hidden = false;
+  input.focus(); input.select();
+  return new Promise((resolve) => { nameDialogResolve = resolve; });
+}
+$('nameConfirm').addEventListener('click', submitNameDialog);
+$('nameCancel').addEventListener('click', () => closeNameDialog(null));
+$('nameDialog').addEventListener('click', (event) => { if (event.target === $('nameDialog')) closeNameDialog(null); });
+$('nameDialog').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !(event.target instanceof HTMLButtonElement)) { event.preventDefault(); submitNameDialog(); } else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeNameDialog(null); } });
+async function createFolder() { if (!state.edit || state.selected.size < 2) return showToast('请先点击“整理”，再选择至少两个应用。', true); const clean = await askFolderName('新文件夹'); if (!clean) return; if (Object.keys(state.folders).some((existing) => normalize(existing) === normalize(clean))) return showToast('已存在同名文件夹。', true); state.folders[clean] = [...state.selected]; state.selected.clear(); scheduleStateSave(); render(); }
+async function renameFolder() { const oldName = $('folderPanel').dataset.folder; const clean = await askFolderName(oldName); if (!clean || clean === oldName) return; if (Object.keys(state.folders).some((name) => normalize(name) === normalize(clean) && name !== oldName)) return showToast('已存在同名文件夹。', true); state.folders[clean] = state.folders[oldName]; delete state.folders[oldName]; $('folderPanel').hidden = true; scheduleStateSave(); render(); }
 function deleteFolder() { const name = $('folderPanel').dataset.folder; if (!name) return; delete state.folders[name]; $('folderPanel').hidden = true; scheduleStateSave(); render(); }
 function setEdit(enabled) { state.edit = enabled; state.selected.clear(); document.body.classList.toggle('editing', enabled); $('edit').textContent = enabled ? '完成' : '整理'; $('folder').disabled = !enabled; $('mode').textContent = enabled ? 'EDIT MODE / 整理' : 'APPLICATIONS / 应用'; $('title').textContent = enabled ? '整理应用' : '所有应用'; render(); }
 
@@ -87,7 +105,25 @@ async function scanWallpapers() {
   $('wallpaperStatus').textContent = '正在扫描 Steam Wallpaper Engine 本地库…';
   try { state.wallpapers = await window.launchpad.listWallpapers(true); const availableIds = new Set(state.wallpapers.filter((item) => item.available).map((item) => normalize(item.id))); const before = state.wallpaperIds.length; state.wallpaperIds = state.wallpaperIds.filter((id) => availableIds.has(normalize(id))); if (state.wallpaperIds.length !== before) scheduleStateSave(); renderWallpapers(); await applyWallpaper(); } catch (error) { $('wallpaperStatus').textContent = `扫描失败：${error.message}`; }
 }
-function applySettings() { const root = document.documentElement; root.style.setProperty('--icon-size', `${state.settings.iconSize}px`); root.style.setProperty('--columns', state.settings.columns); root.style.setProperty('--window-opacity', state.settings.opacity / 100); root.style.setProperty('--wallpaper-brightness', state.settings.wallpaperBrightness / 100); for (const [id, key, suffix] of [['opacity', 'opacity', '%'], ['iconSize', 'iconSize', 'px'], ['columns', 'columns', ''], ['wallpaperBrightness', 'wallpaperBrightness', '%']]) { $(id).value = state.settings[key]; $(`${id}Value`).textContent = `${state.settings[key]}${suffix}`; } }
+function applySettings() { const root = document.documentElement; root.style.setProperty('--icon-size', `${state.settings.iconSize}px`); root.style.setProperty('--columns', state.settings.columns); root.style.setProperty('--window-opacity', state.settings.opacity / 100); root.style.setProperty('--wallpaper-brightness', state.settings.wallpaperBrightness / 100); for (const [id, key, suffix] of [['opacity', 'opacity', '%'], ['iconSize', 'iconSize', 'px'], ['columns', 'columns', ''], ['wallpaperBrightness', 'wallpaperBrightness', '%']]) { $(id).value = state.settings[key]; $(`${id}Value`).textContent = `${state.settings[key]}${suffix}`; } applyLoginItemSetting().catch(() => {}); }
+let loginItemReady = false;
+function reflectLoginItem() {
+  const checkbox = $('launchAtLogin');
+  const available = state.loginItemAvailable === true;
+  state.settings.launchAtLogin = available ? Boolean(state.settings.launchAtLogin) : false;
+  checkbox.checked = state.settings.launchAtLogin;
+  checkbox.disabled = !available;
+  checkbox.title = state.loginItemAvailable === false ? '打包版可用' : '';
+}
+async function applyLoginItemSetting() {
+  const checkbox = $('launchAtLogin');
+  if (!loginItemReady) {
+    loginItemReady = true;
+    try { state.loginItemAvailable = Boolean((await window.launchpad.getLoginItem())?.available); }
+    catch { state.loginItemAvailable = false; }
+  }
+  reflectLoginItem();
+}
 async function load() { $('loading').hidden = false; $('empty').hidden = true; try { const result = await window.launchpad.listApps(); state.apps = result.apps; Object.assign(state, { recent: result.state.recent, pinned: result.state.pinned || [], folders: result.state.folders, wallpaperId: result.state.wallpaperId, wallpaperIds: result.state.wallpaperIds, settings: result.state.settings, diagnostics: result.diagnostics }); applySettings(); render(); updateDiagnostics(); await scanWallpapers(); } finally { $('loading').hidden = true; } }
 
 function updateDiagnostics() { const diagnostics = state.diagnostics; if (!diagnostics) return; const status = $('appStatus'); if (status) status.textContent = diagnostics.invalid || diagnostics.duplicates ? `已加载 ${diagnostics.valid} 个应用，跳过 ${diagnostics.invalid + diagnostics.duplicates} 个无效或重复项目` : `已加载 ${diagnostics.valid} 个应用`; const pathStatus = $('appPathStatus'); if (pathStatus) pathStatus.textContent = `应用目录：${diagnostics.appDirectory || '默认目录'}`; }
@@ -100,6 +136,21 @@ $('settings').addEventListener('click', () => { $('settingsPanel').hidden = fals
 let syncBusy = false;
 $('sync').addEventListener('click', async () => { if (syncBusy) return; if (!window.confirm('同步会将桌面上的快捷方式移动到 Launchpad 应用目录，是否继续？')) return; syncBusy = true; $('sync').disabled = true; try { const result = await window.launchpad.syncDesktop(); const refreshed = await window.launchpad.refreshApps(); state.apps = Array.isArray(refreshed) ? refreshed : refreshed.apps; state.diagnostics = await window.launchpad.getAppDiagnostics(); render(); updateDiagnostics(); showToast(`同步完成：移入 ${result.moved} 个，失败 ${result.failed} 个。`); } catch (error) { showToast(`同步失败：${error.message}`, true); } finally { syncBusy = false; $('sync').disabled = false; } });
 for (const [id, key] of [['opacity', 'opacity'], ['iconSize', 'iconSize'], ['columns', 'columns'], ['wallpaperBrightness', 'wallpaperBrightness']]) $(id).addEventListener('input', (event) => { state.settings[key] = Number(event.target.value); applySettings(); if (key !== 'opacity') render(); scheduleStateSave(); });
+$('launchAtLogin').addEventListener('change', async (event) => {
+  const checkbox = event.target; const enabled = checkbox.checked; const previous = Boolean(state.settings.launchAtLogin);
+  state.settings.launchAtLogin = enabled; scheduleStateSave();
+  try {
+    const result = await window.launchpad.setLoginItem(enabled);
+    if (!result || result.available === false) {
+      state.loginItemAvailable = false; state.settings.launchAtLogin = false; reflectLoginItem(); scheduleStateSave();
+      showToast('开机自启仅在打包版可用。', true); return;
+    }
+    state.settings.launchAtLogin = Boolean(result.enabled); reflectLoginItem(); scheduleStateSave();
+    showToast(state.settings.launchAtLogin ? '已开启开机自动启动。' : '已关闭开机自动启动。');
+  } catch (error) {
+    state.settings.launchAtLogin = previous; checkbox.checked = previous; scheduleStateSave(); showToast(`设置开机自启失败：${error.message}`, true);
+  }
+});
 $('wallpaperMode').addEventListener('change', async (event) => { state.settings.wallpaperMode = event.target.value; renderWallpapers(); scheduleStateSave(); await applyWallpaper(); });
 $('wallpaperSelect').addEventListener('change', async (event) => { state.wallpaperId = event.target.value; scheduleStateSave(); await applyWallpaper(); }); $('refreshWallpapers').addEventListener('click', scanWallpapers); $('refreshDesktopWallpaper').addEventListener('click', applyWallpaper);
 $('saveWallpaperLibrary').addEventListener('click', async () => { state.wallpaperIds = [...document.querySelectorAll('#wallpaperLibraryPicker input:checked')].map((input) => input.value); if (!state.wallpaperIds.some((id) => normalize(id) === normalize(state.wallpaperId))) state.wallpaperId = state.wallpaperIds[0] || ''; renderWallpapers(); scheduleStateSave(); await applyWallpaper(); showToast('我的壁纸库已保存。'); });

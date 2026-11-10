@@ -37,6 +37,7 @@
     <label class="setting">图标大小 <output id="iconSizeValue">72px</output><input id="iconSize" type="range" min="52" max="96" value="72"></label>
     <label class="setting">每行数量 <output id="columnsValue">10</output><input id="columns" type="range" min="6" max="14" value="10"></label>
     <label class="setting">背景亮度 <output id="wallpaperBrightnessValue">100%</output><input id="wallpaperBrightness" type="range" min="45" max="140" value="100"></label>
+    <label class="setting setting-check"><input id="launchAtLogin" type="checkbox"> 开机自动启动</label>
     <section id="wallpaperControls">
       <label class="setting">背景来源<select id="wallpaperMode"><option value="desktop">跟随系统桌面壁纸</option><option value="custom">我的 Wallpaper 壁纸</option></select></label>
       <label id="wallpaperPicker" class="setting">我的壁纸<select id="wallpaperSelect"></select></label>
@@ -47,6 +48,14 @@
       <p id="appPathStatus" class="status" role="status"></p>
     </section>
   </aside>
+  <div id="nameDialog" class="name-dialog" hidden>
+    <div class="name-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="nameDialogTitle">
+      <b id="nameDialogTitle">文件夹名称</b>
+      <input id="nameInput" type="text" maxlength="40" autocomplete="off">
+      <p id="nameError" class="name-error" role="alert"></p>
+      <div class="name-dialog-actions"><button id="nameConfirm" type="button">确定</button><button id="nameCancel" type="button">取消</button></div>
+    </div>
+  </div>
   <div id="toast" role="status" aria-live="polite"></div>
   <script src="renderer.js"></script>
 </body>

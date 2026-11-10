@@ -73,6 +73,18 @@ Set-Location "D:\我不吃绿豆\Launchpad"
 node .\verify_electron_launchpad.js
 ```
 
+该命令依次执行两个子检查：
+
+- `verify_source.js`：纯静态检查（不依赖 dist），动态比对 IPC 通道集合、`$()` 引用的 DOM id、入站通道的来源校验数量等；
+- `verify_packaged.js`：校验 `dist/` 打包产物与源码一致，dist 不存在时自动跳过并返回成功。
+
+也可以单独运行：
+
+```powershell
+node .\verify_source.js
+node .\verify_packaged.js
+```
+
 ## 5. 应用来源
 
 Launchpad 读取：
@@ -94,8 +106,9 @@ D:\Desktop\*.lnk
 ## 6. 当前功能
 
 - 默认最大化打开
-- 普通不透明 Electron 窗口
-- 深色渐变背景
+- 关闭窗口即退出应用，不常驻后台、不保留托盘
+- 单实例运行，重复启动会激活已有窗口
+- 深色渐变背景，支持壁纸
 - 应用图标和中文名称显示
 - 单击启动应用
 - 保留 `.lnk` 的启动参数和工作目录
@@ -106,15 +119,14 @@ D:\Desktop\*.lnk
 - 工作/创作分类筛选
 - 编辑模式
 - 拖拽排序
-- 拖到页面圆点切换页面排序
-- 新建文件夹
+- 新建文件夹（内联对话框，支持 Enter 提交、Esc 取消）
 - 文件夹重命名和删除
 - 手动同步桌面快捷方式
 - 拖入回收站删除快捷方式
 - 删除只发送 `.lnk` 到 Windows 回收站，不卸载软件
 - 图标大小、透明度、每行数量设置
+- 开机自动启动（打包版可用，默认关闭）
 - UI 入场动画、翻页动画、悬停和拖动反馈
-- `prefers-reduced-motion` 支持
 
 ## 7. 壁纸支持
 
