@@ -146,6 +146,19 @@ function readShortcutMetadata() {
   try { urlFiles = fs.readdirSync(APP_DIR, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.url')).map((entry) => readUrlShortcut(path.join(APP_DIR, entry.name))).filter(Boolean); } catch {}
   return shortcuts.concat(urlFiles);
 }
+function isLaunchableTarget(target) {
+  if (!target) return false;
+  if (/^https?:\/\//i.test(target)) return true;
+  try { return fs.statSync(target).isFile(); } catch { return false; }
+}
+function readLnkTargets(directory) {
+  const script = `$payload=$env:LAUNCHPAD_PAYLOAD|ConvertFrom-Json;$shell=New-Object -ComObject WScript.Shell;$items=@();Get-ChildItem -LiteralPath $payload.dir -Filter '*.lnk' -File|ForEach-Object{try{$items+=[PSCustomObject]@{id=$_.Name;target=$shell.CreateShortcut($_.FullName).TargetPath}}catch{}};$items|ConvertTo-Json -Compress -Depth 2`;
+  const parsed = JSON.parse(runPowerShell(script, { dir: directory }) || '[]');
+  const list = Array.isArray(parsed) ? parsed : [parsed];
+  const targets = new Map();
+  for (const item of list) { if (item && typeof item.id === 'string') targets.set(item.id, typeof item.target === 'string' ? item.target.trim() : ''); }
+  return targets;
+}
 function readApps() {
   let metadata = [];
   try { metadata = readShortcutMetadata(); } catch {}
@@ -157,8 +170,7 @@ function readApps() {
     if (!item || typeof item.id !== 'string' || path.basename(item.id) !== item.id || !/\.(lnk|url)$/i.test(item.id)) { invalid += 1; continue; }
     const file = path.join(APP_DIR, item.id); if (!fs.existsSync(file)) { invalid += 1; continue; }
     const target = typeof item.target === 'string' ? item.target.trim() : '';
-    const isUrl = /^https?:\/\//i.test(target); let isFile = false; try { isFile = fs.statSync(target).isFile(); } catch {}
-    if (!target || (!isUrl && !isFile)) { invalid += 1; continue; }
+    if (!isLaunchableTarget(target)) { invalid += 1; continue; }
     const targetKey = `${normalizeId(target)}\n${String(item.args || '').trim()}`;
     if (seenTargets.has(targetKey)) { duplicates += 1; continue; }
     seenTargets.add(targetKey);
@@ -273,7 +285,7 @@ ipcMain.handle('state:save', (event, state) => { assertTrustedEvent(event); retu
 ipcMain.handle('apps:diagnostics', (event) => { assertTrustedEvent(event); return scanDiagnostics; });
 ipcMain.handle('app:launch', (event, id) => { assertTrustedEvent(event); const item = resolveVisibleApp(id); runPowerShell(`$payload=$env:LAUNCHPAD_PAYLOAD|ConvertFrom-Json;$shell=New-Object -ComObject WScript.Shell;$shortcut=$shell.CreateShortcut($payload.file);$target=$shortcut.TargetPath;if(-not ($target -match '^https?://' -or (Test-Path -LiteralPath $target -PathType Leaf))){throw '目标程序不存在。'};$params=@{FilePath=$target};if($shortcut.Arguments){$params.ArgumentList=$shortcut.Arguments};if($shortcut.WorkingDirectory -and (Test-Path -LiteralPath $shortcut.WorkingDirectory -PathType Container)){$params.WorkingDirectory=$shortcut.WorkingDirectory};Start-Process @params`, { file: item.file }); return true; });
 ipcMain.handle('app:recycle', (event, id) => { assertTrustedEvent(event); const item = resolveVisibleApp(id); runPowerShell(`$payload=$env:LAUNCHPAD_PAYLOAD|ConvertFrom-Json;Add-Type -AssemblyName Microsoft.VisualBasic;[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($payload.file,'OnlyErrorDialogs','SendToRecycleBin')`, { file: item.file }); appCache = appCache.filter((appItem) => normalizeId(appItem.id) !== normalizeId(item.id)); return true; });
-ipcMain.handle('desktop:sync', (event) => { assertTrustedEvent(event); let moved = 0; let failed = 0; for (const entry of fs.readdirSync(DESKTOP_DIR, { withFileTypes: true })) { if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.lnk') || /^(applauncher|launchpad|reasonixlaunchpad)/i.test(path.basename(entry.name, '.lnk'))) continue; try { const source = path.join(DESKTOP_DIR, entry.name); let target = path.join(APP_DIR, entry.name); for (let index = 2; fs.existsSync(target); index += 1) target = path.join(APP_DIR, `${path.basename(entry.name, '.lnk')} (${index}).lnk`); fs.renameSync(source, target); moved += 1; } catch { failed += 1; } } appCacheLoaded = false; return { moved, failed }; });
+ipcMain.handle('desktop:sync', (event) => { assertTrustedEvent(event); let moved = 0; let failed = 0; let skipped = 0; let targets = new Map(); try { targets = readLnkTargets(DESKTOP_DIR); } catch { return { moved, failed, skipped }; } for (const entry of fs.readdirSync(DESKTOP_DIR, { withFileTypes: true })) { if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.lnk') || /^(applauncher|launchpad|reasonixlaunchpad)/i.test(path.basename(entry.name, '.lnk'))) continue; if (!isLaunchableTarget(targets.get(entry.name))) { skipped += 1; continue; } try { const source = path.join(DESKTOP_DIR, entry.name); let target = path.join(APP_DIR, entry.name); for (let index = 2; fs.existsSync(target); index += 1) target = path.join(APP_DIR, `${path.basename(entry.name, '.lnk')} (${index}).lnk`); fs.renameSync(source, target); moved += 1; } catch { failed += 1; } } appCacheLoaded = false; return { moved, failed, skipped }; });
 ipcMain.handle('wallpaper:desktop', (event) => { assertTrustedEvent(event); return desktopWallpaper(); });
 ipcMain.handle('wallpaper:list', (event, force) => { assertTrustedEvent(event); return wallpaperLibrary(Boolean(force)); });
 ipcMain.handle('settings:login-item', (event, options) => {

@@ -73,6 +73,13 @@ for (const needle of [
   check(`main: ${needle}`, has(main, needle));
 }
 
+// ---- 桌面同步必须复用「可启动目标」判定，不能只看扩展名 ----
+check('main: 定义 isLaunchableTarget', has(main, 'function isLaunchableTarget(target)'));
+check('main: readApps 复用 isLaunchableTarget', has(main, 'if (!isLaunchableTarget(target)) { invalid += 1; continue; }'));
+check('main: desktop:sync 复用 isLaunchableTarget', has(main, 'if (!isLaunchableTarget(targets.get(entry.name))) { skipped += 1; continue; }'));
+check('main: desktop:sync 通过 readLnkTargets 读取目标', has(main, 'targets = readLnkTargets(DESKTOP_DIR)'));
+check('renderer: 同步提示包含跳过数', has(renderer, 'result.skipped'));
+
 // ---- 常驻后台能力必须为空：关闭即退出，不保留托盘/全局热键 ----
 for (const needle of ['Tray', 'globalShortcut', 'nativeImage', 'displayBalloon']) {
   check(`main: 不包含 ${needle}（关闭即退出）`, !has(main, needle));
