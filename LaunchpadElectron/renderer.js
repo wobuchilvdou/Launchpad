@@ -175,5 +175,9 @@ window.addEventListener('resize', () => { clearPageMetrics(); render(); }); docu
   if (['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(event.key) && document.activeElement?.classList.contains('card')) {
     const cards = [...document.querySelectorAll('#grid .card')]; const index = cards.indexOf(document.activeElement); if (index < 0) return; const columns = Math.max(1, Number(getComputedStyle(grid).gridTemplateColumns.split(' ').length)); const delta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowDown' ? columns : -columns; const next = cards[index + delta]; if (next) { event.preventDefault(); next.focus(); }
   }
+  if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && !document.activeElement?.classList.contains('card') && !(document.activeElement instanceof HTMLInputElement) && !(document.activeElement instanceof HTMLSelectElement) && !$('nameDialog').matches(':not([hidden])')) {
+    const label = $('pageLabel').textContent; const match = label.match(/第 (\d+) \/ (\d+) 页/); const pages = match ? Number(match[2]) : 1;
+    if (pages > 1) { event.preventDefault(); const current = state.page; state.page = event.key === 'ArrowRight' ? Math.min(pages - 1, state.page + 1) : Math.max(0, state.page - 1); if (state.page !== current) render(); }
+  }
 });
 load().catch((error) => showToast(`启动失败：${error.message}`, true));
