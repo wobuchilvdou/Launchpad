@@ -7,8 +7,8 @@
 这是一个运行在 Windows 上的 Electron 应用，目标是提供接近 macOS Launchpad 的应用启动台体验。
 
 当前稳定版本名称：`Launchpad`
-当前桌面入口：`D:\Desktop\Launchpad.lnk`
-当前入口目标：`D:\我不吃绿豆\Launchpad\LaunchpadElectron\dist\Launchpad-win32-x64\Launchpad.exe`
+桌面入口：由 `Set-DesktopElectronShortcut.ps1` 创建的 `Launchpad.lnk`
+入口目标：`LaunchpadElectron/dist/Launchpad-win32-x64/Launchpad.exe`
 
 ## 2. 当前技术栈
 
@@ -21,7 +21,7 @@
 工程目录：
 
 ```text
-D:\我不吃绿豆\Launchpad\LaunchpadElectron\
+LaunchpadElectron/
 ```
 
 ## 3. 重要文件
@@ -51,7 +51,7 @@ verify_chinese_shortcut.js
 在 PowerShell 中执行：
 
 ```powershell
-Set-Location "D:\我不吃绿豆\Launchpad\LaunchpadElectron"
+Set-Location "LaunchpadElectron"
 npm install
 npm run check
 npm run package
@@ -69,7 +69,7 @@ node --check renderer.js
 运行项目验证：
 
 ```powershell
-Set-Location "D:\我不吃绿豆\Launchpad"
+Set-Location "Launchpad"
 node .\verify_electron_launchpad.js
 ```
 
@@ -90,7 +90,7 @@ node .\verify_packaged.js
 Launchpad 读取：
 
 ```text
-D:\Desktop\QuickApps\*.lnk
+%APPDATA%\Launchpad\QuickApps\*.lnk
 ```
 
 只读取快捷方式，不扫描整个硬盘中的所有 `.exe`。这样可以避免把安装程序、卸载程序、组件和缓存程序显示出来。
@@ -98,7 +98,7 @@ D:\Desktop\QuickApps\*.lnk
 桌面同步功能只处理：
 
 ```text
-D:\Desktop\*.lnk
+用户桌面目录\*.lnk
 ```
 
 同步时会跳过 `AppLauncher.lnk`、Launchpad 相关入口，并且不会移动普通文件、文件夹、图片、视频或文档。
@@ -180,13 +180,13 @@ sandbox: true
 快捷方式目录：
 
 ```text
-D:\Desktop\QuickApps
+%APPDATA%\Launchpad\QuickApps
 ```
 
 配置目录：
 
 ```text
-D:\Desktop\QuickApps\.config
+%APPDATA%\Launchpad\config
 ```
 
 主要配置包括：
@@ -208,20 +208,8 @@ D:\Desktop\QuickApps\.config
 6. 不要把 `node_modules`、旧打包目录、临时文件或无关目录提交进项目；
 7. `.gitignore` 应包含 `LaunchpadElectron/dist/`，打包产物不入库。
 
-## 11. 当前清理结果
+## 11. 版本控制边界
 
-已删除：
+提交仓库时只保留当前 Electron 工程、验证脚本、配置示例和项目文档。用户本机的快捷方式、排序、文件夹、壁纸选择、打包产物与依赖目录均不应提交。
 
-- 旧 WinForms/Web 版本 `Reasonix最终产物/`
-- 旧 Electron 归档 `LaunchpadArchive/`
-- 旧验证脚本
-- `__pycache__/`
-- 旧对话导出 Markdown
-
-保留：
-
-- 当前 Electron 工程
-- 当前 `Launchpad.exe`
-- 当前验证脚本
-- `reasonix.toml`
-- `.gitignore`
+`.gitignore` 应包含 `LaunchpadElectron/dist/`、`LaunchpadElectron/node_modules/` 以及本机临时文件。

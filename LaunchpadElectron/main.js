@@ -12,10 +12,12 @@ if (!app.requestSingleInstanceLock()) {
 }
 app.setAppUserModelId('com.launchpad.electron');
 
+// 用户数据统一放在 %APPDATA%\Launchpad，位于代码仓库之外，避免快捷方式等私人信息进入 git 或打包产物。
+const DATA_ROOT = process.env.LAUNCHPAD_DATA_DIR || path.join(process.env.APPDATA || path.join(process.env.USERPROFILE || 'C:\\Users\\Default', 'AppData', 'Roaming'), 'Launchpad');
 const LEGACY_APP_DIR = 'D:\\Desktop\\QuickApps';
 const DESKTOP_DIR = process.env.LAUNCHPAD_DESKTOP_DIR || (fs.existsSync('D:\\Desktop') ? 'D:\\Desktop' : path.join(process.env.USERPROFILE || 'C:\\Users\\Default', 'Desktop'));
-const APP_DIR = process.env.LAUNCHPAD_APP_DIR || (fs.existsSync(LEGACY_APP_DIR) ? LEGACY_APP_DIR : path.join(DESKTOP_DIR, 'QuickApps'));
-const CONFIG_DIR = path.join(APP_DIR, '.config');
+const APP_DIR = process.env.LAUNCHPAD_APP_DIR || path.join(DATA_ROOT, 'QuickApps');
+const CONFIG_DIR = path.join(DATA_ROOT, 'config');
 const ORDER_FILE = path.join(CONFIG_DIR, 'electron-launchpad-order.json');
 const STATE_FILE = path.join(CONFIG_DIR, 'electron-launchpad-state.json');
 const ICON_DIR = path.join(app.getPath('temp'), 'ReasonixElectronIcons');
@@ -35,7 +37,40 @@ let windowSaveTimer = null;
 
 function ensureDirectory(directory) { try { fs.mkdirSync(directory, { recursive: true }); return true; } catch { return false; } }
 ensureDirectory(CONFIG_DIR);
+ensureDirectory(APP_DIR);
 ensureDirectory(ICON_DIR);
+
+// 首次运行：把旧位置（桌面 QuickApps）里的快捷方式与配置迁移到新的用户数据目录，成功后删除旧目录。
+function migrateLegacyAppDir() {
+  if (path.resolve(LEGACY_APP_DIR) === path.resolve(APP_DIR)) return false;
+  let entries = [];
+  try { entries = fs.readdirSync(LEGACY_APP_DIR, { withFileTypes: true }); } catch { return false; }
+  if (!entries.length) { try { fs.rmdirSync(LEGACY_APP_DIR); } catch {} return false; }
+  let moved = 0;
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const source = path.join(LEGACY_APP_DIR, entry.name);
+    let target = path.join(APP_DIR, entry.name);
+    for (let index = 2; fs.existsSync(target); index += 1) target = path.join(APP_DIR, `${path.basename(entry.name, path.extname(entry.name))} (${index})${path.extname(entry.name)}`);
+    try {
+      fs.renameSync(source, target);
+      moved += 1;
+    } catch {
+      // 跨盘符时 rename 会失败，退化为复制后删除。
+      try { fs.copyFileSync(source, target); fs.unlinkSync(source); moved += 1; } catch {}
+    }
+  }
+  const legacyConfig = path.join(LEGACY_APP_DIR, '.config');
+  for (const name of ['electron-launchpad-order.json', 'electron-launchpad-state.json']) {
+    const source = path.join(legacyConfig, name);
+    const destination = path.join(CONFIG_DIR, name);
+    if (!fs.existsSync(source) || fs.existsSync(destination)) continue;
+    try { fs.copyFileSync(source, destination); } catch {}
+  }
+  try { fs.rmSync(LEGACY_APP_DIR, { recursive: true, force: true }); } catch {}
+  return moved > 0;
+}
+try { migrateLegacyAppDir(); } catch {}
 
 function normalizeId(value) { return String(value || '').trim().toLocaleLowerCase('en-US'); }
 function clamp(value, min, max, fallback) { const number = Number(value); return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback; }

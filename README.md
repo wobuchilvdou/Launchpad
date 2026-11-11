@@ -4,20 +4,22 @@
 
 ## 功能
 
-- **应用启动**：扫描指定目录中的 `.lnk` / `.url` 快捷方式，保留原始启动参数与工作目录，单击即可启动
-- **图标提取**：通过 PowerShell + `System.Drawing` 提取真实程序图标，按路径与修改时间缓存
+- **应用启动**：扫描 `%APPDATA%\Launchpad\QuickApps` 中的 `.lnk` / `.url` 快捷方式，保留原始启动参数与工作目录，单击即可启动
+- **图标提取**：通过 Win32 `PrivateExtractIcons` 提取最高 256px 的真实程序图标，按路径与修改时间缓存
 - **搜索**：按应用名称与目标路径实时过滤，`Ctrl + K` 聚焦搜索框
 - **分类筛选**：全部 / 最近 / 工作 / 创作
-- **分页**：自动按窗口尺寸计算每页容量，支持左右翻页与底部圆点
-- **整理模式**：拖拽排序、多选建文件夹、文件夹重命名与删除（内联对话框，Enter 提交 / Esc 取消）
+- **分页**：自动按窗口尺寸计算每页容量，支持左右翻页、底部圆点与左右方向键
+- **整理模式**：拖拽排序、跨页拖拽（拖到网格左右边缘自动翻页）、多选建文件夹、文件夹重命名与删除（内联对话框，Enter 提交 / Esc 取消）
 - **回收站**：拖入回收站只把 `.lnk` 移入 Windows 回收站，不卸载软件
 - **桌面同步**：把桌面上的快捷方式批量移入应用目录
 - **壁纸**：跟随系统桌面壁纸，或单独选择 Wallpaper Engine 本地壁纸（图片 / 视频 / Web）
+- **外观主题**：壁纸模式与 macOS 天气风格毛玻璃模式互斥切换；图标卡片可选无卡片 / 半透明卡片，并可调背景渐变强度
 - **外观设置**：窗口透明度、图标大小、每行数量、壁纸亮度
 - **窗口行为**：启动即最大化；关闭窗口直接退出，不常驻后台、不保留托盘
 - **单实例**：重复启动会激活已有窗口
 - **开机自启**：设置面板中可开启，默认关闭（仅打包版生效）
-- **可访问性**：键盘方向键导航、卡片焦点可见
+- **可访问性**：键盘方向键导航与翻页、卡片焦点可见、尊重系统「减弱动画」偏好
+
 
 ## 技术栈
 
@@ -38,14 +40,15 @@ Launchpad/
 │  ├─ style.css                      样式与动画
 │  ├─ package.json                   npm 脚本与依赖
 │  ├─ Set-DesktopElectronShortcut.ps1 生成桌面快捷方式
-│  ├─ assets/icon.png                应用与窗口图标
-│  ├─ assets/social/                 项目封面图
+│  ├─ assets/icon.png / icon.ico     应用与窗口图标
+│  ├─ assets/social/                 可公开的界面预览图
 │  └─ test/smoke.js                  冒烟测试
 ├─ verify_electron_launchpad.js      验证总入口（依次运行下面两个）
 ├─ verify_source.js                  源码静态一致性检查（不依赖 dist）
 ├─ verify_packaged.js                打包产物一致性检查（dist 缺失时跳过）
 ├─ verify_chinese_shortcut.js        中文快捷方式编码校验
 ├─ Launchpad项目说明书.md            详细项目说明书
+├─ LICENSE                           PolyForm Noncommercial 许可证
 └─ reasonix.toml                     本地工作区配置
 ```
 
@@ -56,6 +59,8 @@ Launchpad/
 - 可选：Steam 与 Wallpaper Engine（仅使用壁纸功能时需要）
 
 ## 安装与运行
+
+发布版是 Windows x64 绿色目录，解压后直接运行 `Launchpad.exe`。源码运行需要 Node.js 18+：
 
 ```powershell
 Set-Location "LaunchpadElectron"
@@ -80,24 +85,40 @@ npm run package         # 打包到 dist/Launchpad-win32-x64/
 
 ```powershell
 node verify_electron_launchpad.js   # 依次运行 verify_source.js 与 verify_packaged.js
-node verify_chinese_shortcut.js     # 需要本机存在 D:\Desktop\QuickApps\钉钉.lnk
+node verify_chinese_shortcut.js     # 需要本机存在 %APPDATA%\Launchpad\QuickApps\钉钉.lnk
 ```
 
 `verify_source.js` 做的是动态一致性检查，而不是字符串匹配：它会比对 `main.js` 的 IPC 通道集合与 `preload.js` 的 `invoke` 集合是否完全相等、`renderer.js` 引用的每个 `$('id')` 是否都存在于 `index.html`、入站通道数量是否与 `assertTrustedEvent` 调用数一致。
 
 打包完成后可运行 `Set-DesktopElectronShortcut.ps1` 更新桌面快捷方式。
 
+## 界面预览
+
+第一页使用实际整理后的应用顺序，分别展示两种互斥外观模式：
+
+### 毛玻璃模式
+
+![毛玻璃模式](LaunchpadElectron/assets/social/screenshot-glass.png)
+
+### Wallpaper 壁纸模式
+
+![Wallpaper 壁纸模式](LaunchpadElectron/assets/social/screenshot-wallpaper.png)
+
+截图仅展示应用启动台界面；应用列表和壁纸来自本机运行环境，不会写入发布版数据。
+
 ## 数据位置
 
 应用快捷方式默认读取：
 
 ```text
-%USERPROFILE%\Desktop\QuickApps\*.lnk
+%APPDATA%\Launchpad\QuickApps\*.lnk
 ```
 
-若 `D:\Desktop` 存在则优先使用 `D:\Desktop\QuickApps`，也可通过环境变量 `LAUNCHPAD_APP_DIR` 指定。
+可用环境变量 `LAUNCHPAD_DATA_DIR` 改整个数据根目录，或用 `LAUNCHPAD_APP_DIR` 单独指定快捷方式目录。
 
-配置保存在同一目录下的 `.config/`：
+首次运行新版时会自动把旧版桌面 `QuickApps` 目录迁移过来并删除旧目录，无需手动处理。
+
+配置保存在 `%APPDATA%\Launchpad\config\`：
 
 - `electron-launchpad-order.json`：应用排序
 - `electron-launchpad-state.json`：最近使用、固定项、文件夹、界面设置、窗口位置
@@ -120,6 +141,10 @@ node verify_chinese_shortcut.js     # 需要本机存在 D:\Desktop\QuickApps\�
 - 启动目标仅限当前可见的快捷方式，且仅允许普通文件或 `http/https`
 - PowerShell 参数通过 JSON 环境变量传递，不做字符串拼接
 - 渲染层仅使用 `textContent` 与 DOM API
+
+## 许可证
+
+本项目采用 [PolyForm Noncommercial License 1.0.0](LICENSE)。允许个人和非商业项目使用、修改与分发；未经许可不得用于商业活动。
 
 ## 说明
 
