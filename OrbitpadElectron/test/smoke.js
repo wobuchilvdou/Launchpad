@@ -27,4 +27,4 @@ assert.match(html, /Content-Security-Policy/);
 assert.match(read('renderer.js'), /togglePinned/);
 assert.match(read('renderer.js'), /wallpaper-cover/);
 assert.match(read('style.css'), /object-fit: cover/);
-console.log('LAUNCHPAD_SMOKE_OK');
+console.log('ORBITPAD_SMOKE_OK');

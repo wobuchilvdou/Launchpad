@@ -1,10 +1,10 @@
-# Launchpad
+# Orbitpad
 
 一个运行在 Windows 上的 macOS Launchpad 风格应用启动台，基于 Electron 与原生 HTML / CSS / JavaScript 构建，无前端框架、无构建步骤。
 
 ## 功能
 
-- **应用启动**：扫描 `%APPDATA%\Launchpad\QuickApps` 中的 `.lnk` / `.url` 快捷方式，保留原始启动参数与工作目录，单击即可启动
+- **应用启动**：扫描 `%APPDATA%\Orbitpad\QuickApps` 中的 `.lnk` / `.url` 快捷方式，保留原始启动参数与工作目录，单击即可启动
 - **图标提取**：通过 Win32 `PrivateExtractIcons` 提取最高 256px 的真实程序图标，按路径与修改时间缓存
 - **搜索**：按应用名称与目标路径实时过滤，`Ctrl + K` 聚焦搜索框
 - **分类筛选**：全部 / 最近 / 工作 / 创作
@@ -31,8 +31,8 @@
 ## 目录结构
 
 ```text
-Launchpad/
-├─ LaunchpadElectron/
+Orbitpad/
+├─ OrbitpadElectron/
 │  ├─ main.js                        主进程：扫描、图标、配置、启动、回收、壁纸
 │  ├─ preload.js                     contextBridge 暴露的白名单 IPC
 │  ├─ renderer.js                    渲染、搜索、分页、拖拽、文件夹、设置
@@ -43,11 +43,11 @@ Launchpad/
 │  ├─ assets/icon.png / icon.ico     应用与窗口图标
 │  ├─ assets/social/                 可公开的界面预览图
 │  └─ test/smoke.js                  冒烟测试
-├─ verify_electron_launchpad.js      验证总入口（依次运行下面两个）
+├─ verify_electron_orbitpad.js      验证总入口（依次运行下面两个）
 ├─ verify_source.js                  源码静态一致性检查（不依赖 dist）
 ├─ verify_packaged.js                打包产物一致性检查（dist 缺失时跳过）
 ├─ verify_chinese_shortcut.js        中文快捷方式编码校验
-├─ Launchpad项目说明书.md            详细项目说明书
+├─ Orbitpad项目说明书.md            详细项目说明书
 ├─ LICENSE                           PolyForm Noncommercial 许可证
 └─ reasonix.toml                     本地工作区配置
 ```
@@ -60,17 +60,17 @@ Launchpad/
 
 ## 安装与运行
 
-发布版是 Windows x64 绿色目录，解压后直接运行 `Launchpad.exe`。源码运行需要 Node.js 18+：
+发布版是 Windows x64 绿色目录，解压后直接运行 `Orbitpad.exe`。源码运行需要 Node.js 18+：
 
 ```powershell
-Set-Location "LaunchpadElectron"
+Set-Location "OrbitpadElectron"
 npm install
 npm start
 ```
 
 ## 常用脚本
 
-在 `LaunchpadElectron/` 下执行：
+在 `OrbitpadElectron/` 下执行：
 
 ```powershell
 npm run check           # 语法检查 main.js / preload.js / renderer.js
@@ -78,14 +78,14 @@ npm test                # 冒烟测试
 npm run verify          # check + test + 源码静态检查
 npm run verify:source   # 仅源码静态检查
 npm run verify:packaged # 仅打包产物检查（dist 缺失时跳过）
-npm run package         # 打包到 dist/Launchpad-win32-x64/
+npm run package         # 打包到 dist/Orbitpad-win32-x64/
 ```
 
 在仓库根目录执行：
 
 ```powershell
-node verify_electron_launchpad.js   # 依次运行 verify_source.js 与 verify_packaged.js
-node verify_chinese_shortcut.js     # 需要本机存在 %APPDATA%\Launchpad\QuickApps\钉钉.lnk
+node verify_electron_orbitpad.js   # 依次运行 verify_source.js 与 verify_packaged.js
+node verify_chinese_shortcut.js     # 需要本机存在 %APPDATA%\Orbitpad\QuickApps\钉钉.lnk
 ```
 
 `verify_source.js` 做的是动态一致性检查，而不是字符串匹配：它会比对 `main.js` 的 IPC 通道集合与 `preload.js` 的 `invoke` 集合是否完全相等、`renderer.js` 引用的每个 `$('id')` 是否都存在于 `index.html`、入站通道数量是否与 `assertTrustedEvent` 调用数一致。
@@ -98,11 +98,11 @@ node verify_chinese_shortcut.js     # 需要本机存在 %APPDATA%\Launchpad\Qui
 
 ### 毛玻璃模式
 
-![毛玻璃模式](LaunchpadElectron/assets/social/screenshot-glass.png)
+![毛玻璃模式](OrbitpadElectron/assets/social/screenshot-glass.png)
 
 ### Wallpaper 壁纸模式
 
-![Wallpaper 壁纸模式](LaunchpadElectron/assets/social/screenshot-wallpaper.png)
+![Wallpaper 壁纸模式](OrbitpadElectron/assets/social/screenshot-wallpaper.png)
 
 截图仅展示应用启动台界面；应用列表和壁纸来自本机运行环境，不会写入发布版数据。
 
@@ -111,19 +111,22 @@ node verify_chinese_shortcut.js     # 需要本机存在 %APPDATA%\Launchpad\Qui
 应用快捷方式默认读取：
 
 ```text
-%APPDATA%\Launchpad\QuickApps\*.lnk
+%APPDATA%\Orbitpad\QuickApps\*.lnk
 ```
 
-可用环境变量 `LAUNCHPAD_DATA_DIR` 改整个数据根目录，或用 `LAUNCHPAD_APP_DIR` 单独指定快捷方式目录。
+可用环境变量 `ORBITPAD_DATA_DIR` 改整个数据根目录，或用 `ORBITPAD_APP_DIR` 单独指定快捷方式目录。旧版 `LAUNCHPAD_*` 变量仍然兼容。
 
-首次运行新版时会自动把旧版桌面 `QuickApps` 目录迁移过来并删除旧目录，无需手动处理。
+首次运行时会自动迁移旧数据，无需手动处理：
 
-配置保存在 `%APPDATA%\Launchpad\config\`：
+- 旧版桌面 `QuickApps` 目录会迁移到新的应用目录；
+- 旧版 `%APPDATA%\Launchpad` 的 `QuickApps` 与 `config` 会复制到 `%APPDATA%\Orbitpad`，保留快捷方式、排序、文件夹与界面设置；旧目录不会被删除。
 
-- `electron-launchpad-order.json`：应用排序
-- `electron-launchpad-state.json`：最近使用、固定项、文件夹、界面设置、窗口位置
+配置保存在 `%APPDATA%\Orbitpad\config\`：
 
-图标缓存位于 `%TEMP%\ReasonixElectronIcons`。
+- `electron-orbitpad-order.json`：应用排序
+- `electron-orbitpad-state.json`：最近使用、固定项、文件夹、界面设置、窗口位置
+
+图标缓存位于 `%TEMP%\OrbitpadElectronIcons`。
 
 ## 壁纸
 
@@ -148,4 +151,4 @@ node verify_chinese_shortcut.js     # 需要本机存在 %APPDATA%\Launchpad\Qui
 
 ## 说明
 
-打包产物（`LaunchpadElectron/dist/`）与 `node_modules/` 不纳入版本控制，请本地执行 `npm run package` 生成。
+打包产物（`OrbitpadElectron/dist/`）与 `node_modules/` 不纳入版本控制，请本地执行 `npm run package` 生成。

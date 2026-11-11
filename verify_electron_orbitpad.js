@@ -15,4 +15,4 @@ const run = (script) => {
 
 run('verify_source.js');
 run('verify_packaged.js');
-console.log('ELECTRON_LAUNCHPAD_CHECK_OK');
+console.log('ELECTRON_ORBITPAD_CHECK_OK');

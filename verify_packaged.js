@@ -2,10 +2,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const srcRoot = path.join(__dirname, 'LaunchpadElectron');
-const distRoot = process.env.LAUNCHPAD_DIST_ROOT
-  ? path.resolve(process.env.LAUNCHPAD_DIST_ROOT)
-  : path.join(srcRoot, 'dist', 'Launchpad-win32-x64');
+const srcRoot = path.join(__dirname, 'OrbitpadElectron');
+const distRoot = process.env.ORBITPAD_DIST_ROOT
+  ? path.resolve(process.env.ORBITPAD_DIST_ROOT)
+  : path.join(srcRoot, 'dist', 'Orbitpad-win32-x64');
 
 const compact = (text) => String(text).replace(/\s+/g, '');
 const read = (file) => fs.readFileSync(file, 'utf8');
@@ -18,8 +18,8 @@ if (!fs.existsSync(distRoot)) {
 const checks = [];
 const check = (name, value) => checks.push({ name, value: Boolean(value) });
 
-const exe = path.join(distRoot, 'Launchpad.exe');
-check('dist: Launchpad.exe 存在', fs.existsSync(exe));
+const exe = path.join(distRoot, 'Orbitpad.exe');
+check('dist: Orbitpad.exe 存在', fs.existsSync(exe));
 
 const packagedApp = path.join(distRoot, 'resources', 'app');
 for (const file of ['main.js', 'preload.js', 'renderer.js', 'style.css', 'index.html']) {

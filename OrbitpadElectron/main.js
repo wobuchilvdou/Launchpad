@@ -10,17 +10,23 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
   return;
 }
-app.setAppUserModelId('com.launchpad.electron');
+app.setAppUserModelId('com.orbitpad.electron');
+app.setName('Orbitpad');
 
-// 用户数据统一放在 %APPDATA%\Launchpad，位于代码仓库之外，避免快捷方式等私人信息进入 git 或打包产物。
-const DATA_ROOT = process.env.LAUNCHPAD_DATA_DIR || path.join(process.env.APPDATA || path.join(process.env.USERPROFILE || 'C:\\Users\\Default', 'AppData', 'Roaming'), 'Launchpad');
+// 用户数据统一放在 %APPDATA%\Orbitpad，位于代码仓库之外，避免快捷方式等私人信息进入 git 或打包产物。
+// 旧版 Launchpad 的目录与环境变量仍然兼容，并会在首次启动时自动迁移。
+const APPDATA_ROOT = process.env.APPDATA || path.join(process.env.USERPROFILE || 'C:\\Users\\Default', 'AppData', 'Roaming');
+const LEGACY_DATA_ROOT = path.join(APPDATA_ROOT, 'Launchpad');
+const DATA_ROOT = process.env.ORBITPAD_DATA_DIR || process.env.LAUNCHPAD_DATA_DIR || path.join(APPDATA_ROOT, 'Orbitpad');
 const LEGACY_APP_DIR = 'D:\\Desktop\\QuickApps';
-const DESKTOP_DIR = process.env.LAUNCHPAD_DESKTOP_DIR || (fs.existsSync('D:\\Desktop') ? 'D:\\Desktop' : path.join(process.env.USERPROFILE || 'C:\\Users\\Default', 'Desktop'));
-const APP_DIR = process.env.LAUNCHPAD_APP_DIR || path.join(DATA_ROOT, 'QuickApps');
+const DESKTOP_DIR = process.env.ORBITPAD_DESKTOP_DIR || process.env.LAUNCHPAD_DESKTOP_DIR || (fs.existsSync('D:\\Desktop') ? 'D:\\Desktop' : path.join(process.env.USERPROFILE || 'C:\\Users\\Default', 'Desktop'));
+const APP_DIR = process.env.ORBITPAD_APP_DIR || process.env.LAUNCHPAD_APP_DIR || path.join(DATA_ROOT, 'QuickApps');
 const CONFIG_DIR = path.join(DATA_ROOT, 'config');
-const ORDER_FILE = path.join(CONFIG_DIR, 'electron-launchpad-order.json');
-const STATE_FILE = path.join(CONFIG_DIR, 'electron-launchpad-state.json');
-const ICON_DIR = path.join(app.getPath('temp'), 'ReasonixElectronIcons');
+const ORDER_FILE = path.join(CONFIG_DIR, 'electron-orbitpad-order.json');
+const STATE_FILE = path.join(CONFIG_DIR, 'electron-orbitpad-state.json');
+const LEGACY_CONFIG_FILES = ['electron-launchpad-order.json', 'electron-launchpad-state.json'];
+const ICON_DIR = path.join(app.getPath('temp'), 'OrbitpadElectronIcons');
+const LEGACY_ICON_DIR = path.join(app.getPath('temp'), 'ReasonixElectronIcons');
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif']);
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.m4v']);
 const MAX_ICON_CACHE_FILES = 400;
@@ -36,9 +42,40 @@ let scanDiagnostics = { total: 0, valid: 0, invalid: 0, duplicates: 0, appDirect
 let windowSaveTimer = null;
 
 function ensureDirectory(directory) { try { fs.mkdirSync(directory, { recursive: true }); return true; } catch { return false; } }
+
+// 首次运行：把旧版 Launchpad 的快捷方式与配置复制到 Orbitpad，保留排序、文件夹与设置。
+// 只迁移应用数据（QuickApps / config），旧目录里的 Electron 缓存不动也不搬运。
+function migrateLegacyDataRoot() {
+  if (path.resolve(LEGACY_DATA_ROOT) === path.resolve(DATA_ROOT)) return false;
+  if (!fs.existsSync(LEGACY_DATA_ROOT)) return false;
+  let migrated = false;
+  for (const name of ['QuickApps', 'config']) {
+    const source = path.join(LEGACY_DATA_ROOT, name);
+    const destination = path.join(DATA_ROOT, name);
+    if (!fs.existsSync(source) || fs.existsSync(destination)) continue;
+    try {
+      fs.cpSync(source, destination, { recursive: true, errorOnExist: false });
+      migrated = true;
+    } catch {}
+  }
+  return migrated;
+}
+
+function migrateLegacyConfigNames() {
+  for (const [index, name] of LEGACY_CONFIG_FILES.entries()) {
+    const destination = index === 0 ? ORDER_FILE : STATE_FILE;
+    const source = path.join(CONFIG_DIR, name);
+    if (!fs.existsSync(source) || fs.existsSync(destination)) continue;
+    try { fs.renameSync(source, destination); } catch {}
+  }
+}
+
+try { migrateLegacyDataRoot(); } catch {}
 ensureDirectory(CONFIG_DIR);
 ensureDirectory(APP_DIR);
 ensureDirectory(ICON_DIR);
+try { migrateLegacyConfigNames(); } catch {}
+try { fs.rmSync(LEGACY_ICON_DIR, { recursive: true, force: true }); } catch {}
 
 // 首次运行：把旧位置（桌面 QuickApps）里的快捷方式与配置迁移到新的用户数据目录，成功后删除旧目录。
 function migrateLegacyAppDir() {
@@ -61,9 +98,9 @@ function migrateLegacyAppDir() {
     }
   }
   const legacyConfig = path.join(LEGACY_APP_DIR, '.config');
-  for (const name of ['electron-launchpad-order.json', 'electron-launchpad-state.json']) {
+  for (const [index, name] of LEGACY_CONFIG_FILES.entries()) {
     const source = path.join(legacyConfig, name);
-    const destination = path.join(CONFIG_DIR, name);
+    const destination = index === 0 ? ORDER_FILE : STATE_FILE;
     if (!fs.existsSync(source) || fs.existsSync(destination)) continue;
     try { fs.copyFileSync(source, destination); } catch {}
   }
@@ -83,7 +120,7 @@ function assertTrustedEvent(event) { if (!isTrustedEvent(event)) throw new Error
 
 function runPowerShell(script, payload = {}) {
   const result = spawnSync('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', `[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);$OutputEncoding=[Text.UTF8Encoding]::new($false);${script}`], {
-    encoding: 'utf8', env: { ...process.env, LAUNCHPAD_PAYLOAD: JSON.stringify(payload) }, maxBuffer: 20 * 1024 * 1024, windowsHide: true,
+    encoding: 'utf8', env: { ...process.env, ORBITPAD_PAYLOAD: JSON.stringify(payload) }, maxBuffer: 20 * 1024 * 1024, windowsHide: true,
   });
   if (result.status !== 0) throw new Error((result.stderr || 'PowerShell 操作失败。').trim());
   return result.stdout.trim();
@@ -163,7 +200,7 @@ function extractIcons(items) {
   if (!ensureDirectory(ICON_DIR)) return;
   const missing = items.filter((item) => !fs.existsSync(item.iconPath));
   if (!missing.length) return;
-  const script = `$items=$env:LAUNCHPAD_PAYLOAD|ConvertFrom-Json;Add-Type -AssemblyName System.Drawing;$q=[char]34;$sig='using System;using System.Runtime.InteropServices;public class IconEx{[DllImport(~user32.dll~,CharSet=CharSet.Unicode)]public static extern int PrivateExtractIcons(string lpszFile,int nIconIndex,int cxIcon,int cyIcon,IntPtr[] phicon,uint[] piconid,uint nIcons,uint flags);[DllImport(~user32.dll~)]public static extern bool DestroyIcon(IntPtr hIcon);}'.Replace('~',$q);Add-Type -TypeDefinition $sig -ReferencedAssemblies System.Drawing;foreach($item in $items){$done=$false;foreach($size in 256,48,32){if($done){continue};$h=New-Object IntPtr[] 1;$iconId=New-Object uint32[] 1;try{$n=[IconEx]::PrivateExtractIcons($item.target,0,$size,$size,$h,$iconId,1,0)}catch{$n=0};if($n -gt 0 -and $h[0] -ne [IntPtr]::Zero){$tmp=$item.output+'.tmp';try{$ico=[System.Drawing.Icon]::FromHandle($h[0]);$bmp=$ico.ToBitmap();$bmp.Save($tmp,[Drawing.Imaging.ImageFormat]::Png);$bmp.Dispose();$ico.Dispose();Move-Item -LiteralPath $tmp -Destination $item.output -Force;$done=$true}catch{Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue};[void][IconEx]::DestroyIcon($h[0])}};if(-not $done){$ico=$null;try{$ico=[Drawing.Icon]::ExtractAssociatedIcon($item.shortcut)}catch{};if($ico){$tmp=$item.output+'.tmp';try{$bmp=$ico.ToBitmap();$bmp.Save($tmp,[Drawing.Imaging.ImageFormat]::Png);$bmp.Dispose();Move-Item -LiteralPath $tmp -Destination $item.output -Force;$done=$true}catch{Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue};$ico.Dispose()}}}`;
+  const script = `$items=$env:ORBITPAD_PAYLOAD|ConvertFrom-Json;Add-Type -AssemblyName System.Drawing;$q=[char]34;$sig='using System;using System.Runtime.InteropServices;public class IconEx{[DllImport(~user32.dll~,CharSet=CharSet.Unicode)]public static extern int PrivateExtractIcons(string lpszFile,int nIconIndex,int cxIcon,int cyIcon,IntPtr[] phicon,uint[] piconid,uint nIcons,uint flags);[DllImport(~user32.dll~)]public static extern bool DestroyIcon(IntPtr hIcon);}'.Replace('~',$q);Add-Type -TypeDefinition $sig -ReferencedAssemblies System.Drawing;foreach($item in $items){$done=$false;foreach($size in 256,48,32){if($done){continue};$h=New-Object IntPtr[] 1;$iconId=New-Object uint32[] 1;try{$n=[IconEx]::PrivateExtractIcons($item.target,0,$size,$size,$h,$iconId,1,0)}catch{$n=0};if($n -gt 0 -and $h[0] -ne [IntPtr]::Zero){$tmp=$item.output+'.tmp';try{$ico=[System.Drawing.Icon]::FromHandle($h[0]);$bmp=$ico.ToBitmap();$bmp.Save($tmp,[Drawing.Imaging.ImageFormat]::Png);$bmp.Dispose();$ico.Dispose();Move-Item -LiteralPath $tmp -Destination $item.output -Force;$done=$true}catch{Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue};[void][IconEx]::DestroyIcon($h[0])}};if(-not $done){$ico=$null;try{$ico=[Drawing.Icon]::ExtractAssociatedIcon($item.shortcut)}catch{};if($ico){$tmp=$item.output+'.tmp';try{$bmp=$ico.ToBitmap();$bmp.Save($tmp,[Drawing.Imaging.ImageFormat]::Png);$bmp.Dispose();Move-Item -LiteralPath $tmp -Destination $item.output -Force;$done=$true}catch{Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue};$ico.Dispose()}}}`;
   try { runPowerShell(script, missing.map((item) => ({ shortcut: item.file, target: item.target, output: item.iconPath }))); } catch {}
   cleanupIconCache();
 }
@@ -175,7 +212,7 @@ function readUrlShortcut(file) {
   } catch { return null; }
 }
 function readShortcutMetadata() {
-  const script = `$payload=$env:LAUNCHPAD_PAYLOAD|ConvertFrom-Json;$shell=New-Object -ComObject WScript.Shell;$items=@();Get-ChildItem -LiteralPath $payload.appDir -Filter '*.lnk' -File|ForEach-Object{if($_.Name -ieq 'AppLauncher.lnk'){return};try{$shortcut=$shell.CreateShortcut($_.FullName);$items+=[PSCustomObject]@{id=$_.Name;target=$shortcut.TargetPath;args=$shortcut.Arguments;cwd=$shortcut.WorkingDirectory}}catch{}};$items|ConvertTo-Json -Compress -Depth 3`;
+  const script = `$payload=$env:ORBITPAD_PAYLOAD|ConvertFrom-Json;$shell=New-Object -ComObject WScript.Shell;$items=@();Get-ChildItem -LiteralPath $payload.appDir -Filter '*.lnk' -File|ForEach-Object{if($_.Name -ieq 'AppLauncher.lnk'){return};try{$shortcut=$shell.CreateShortcut($_.FullName);$items+=[PSCustomObject]@{id=$_.Name;target=$shortcut.TargetPath;args=$shortcut.Arguments;cwd=$shortcut.WorkingDirectory}}catch{}};$items|ConvertTo-Json -Compress -Depth 3`;
   const parsed = JSON.parse(runPowerShell(script, { appDir: APP_DIR }) || '[]');
   const shortcuts = Array.isArray(parsed) ? parsed : [parsed];
   let urlFiles = [];
@@ -188,7 +225,7 @@ function isLaunchableTarget(target) {
   try { return fs.statSync(target).isFile(); } catch { return false; }
 }
 function readLnkTargets(directory) {
-  const script = `$payload=$env:LAUNCHPAD_PAYLOAD|ConvertFrom-Json;$shell=New-Object -ComObject WScript.Shell;$items=@();Get-ChildItem -LiteralPath $payload.dir -Filter '*.lnk' -File|ForEach-Object{try{$items+=[PSCustomObject]@{id=$_.Name;target=$shell.CreateShortcut($_.FullName).TargetPath}}catch{}};$items|ConvertTo-Json -Compress -Depth 2`;
+  const script = `$payload=$env:ORBITPAD_PAYLOAD|ConvertFrom-Json;$shell=New-Object -ComObject WScript.Shell;$items=@();Get-ChildItem -LiteralPath $payload.dir -Filter '*.lnk' -File|ForEach-Object{try{$items+=[PSCustomObject]@{id=$_.Name;target=$shell.CreateShortcut($_.FullName).TargetPath}}catch{}};$items|ConvertTo-Json -Compress -Depth 2`;
   const parsed = JSON.parse(runPowerShell(script, { dir: directory }) || '[]');
   const list = Array.isArray(parsed) ? parsed : [parsed];
   const targets = new Map();
@@ -297,7 +334,7 @@ async function wallpaperLibrary(force = false) {
 
 function createWindow() {
   const savedWindow = loadState().window;
-  mainWindow = new BrowserWindow({ ...savedWindow.bounds, width: savedWindow.bounds.width, height: savedWindow.bounds.height, minWidth: 860, minHeight: 620, show: false, backgroundColor: '#0b1020', autoHideMenuBar: true, title: 'Launchpad', icon: path.join(__dirname, 'assets', 'icon.png'), webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: false } });
+  mainWindow = new BrowserWindow({ ...savedWindow.bounds, width: savedWindow.bounds.width, height: savedWindow.bounds.height, minWidth: 860, minHeight: 620, show: false, backgroundColor: '#0b1020', autoHideMenuBar: true, title: 'Orbitpad', icon: path.join(__dirname, 'assets', 'icon.png'), webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: false } });
   const localUrl = pathToFileURL(path.join(__dirname, 'index.html')).href;
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
   mainWindow.webContents.on('will-navigate', (event, url) => { if (url !== localUrl) event.preventDefault(); });
@@ -319,9 +356,9 @@ ipcMain.handle('apps:refresh', (event) => { assertTrustedEvent(event); return re
 ipcMain.handle('apps:order', (event, ids) => { assertTrustedEvent(event); if (!appCacheLoaded) readApps(); const order = saveOrder(ids); const rank = new Map(order.map((id, index) => [normalizeId(id), index])); appCache.sort((a, b) => (rank.get(normalizeId(a.id)) ?? 0) - (rank.get(normalizeId(b.id)) ?? 0)); return true; });
 ipcMain.handle('state:save', (event, state) => { assertTrustedEvent(event); return saveState(state); });
 ipcMain.handle('apps:diagnostics', (event) => { assertTrustedEvent(event); return scanDiagnostics; });
-ipcMain.handle('app:launch', (event, id) => { assertTrustedEvent(event); const item = resolveVisibleApp(id); runPowerShell(`$payload=$env:LAUNCHPAD_PAYLOAD|ConvertFrom-Json;$shell=New-Object -ComObject WScript.Shell;$shortcut=$shell.CreateShortcut($payload.file);$target=$shortcut.TargetPath;if(-not ($target -match '^https?://' -or (Test-Path -LiteralPath $target -PathType Leaf))){throw '目标程序不存在。'};$params=@{FilePath=$target};if($shortcut.Arguments){$params.ArgumentList=$shortcut.Arguments};if($shortcut.WorkingDirectory -and (Test-Path -LiteralPath $shortcut.WorkingDirectory -PathType Container)){$params.WorkingDirectory=$shortcut.WorkingDirectory};Start-Process @params`, { file: item.file }); return true; });
-ipcMain.handle('app:recycle', (event, id) => { assertTrustedEvent(event); const item = resolveVisibleApp(id); runPowerShell(`$payload=$env:LAUNCHPAD_PAYLOAD|ConvertFrom-Json;Add-Type -AssemblyName Microsoft.VisualBasic;[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($payload.file,'OnlyErrorDialogs','SendToRecycleBin')`, { file: item.file }); appCache = appCache.filter((appItem) => normalizeId(appItem.id) !== normalizeId(item.id)); return true; });
-ipcMain.handle('desktop:sync', (event) => { assertTrustedEvent(event); let moved = 0; let failed = 0; let skipped = 0; let targets = new Map(); try { targets = readLnkTargets(DESKTOP_DIR); } catch { return { moved, failed, skipped }; } for (const entry of fs.readdirSync(DESKTOP_DIR, { withFileTypes: true })) { if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.lnk') || /^(applauncher|launchpad|reasonixlaunchpad)/i.test(path.basename(entry.name, '.lnk'))) continue; if (!isLaunchableTarget(targets.get(entry.name))) { skipped += 1; continue; } try { const source = path.join(DESKTOP_DIR, entry.name); let target = path.join(APP_DIR, entry.name); for (let index = 2; fs.existsSync(target); index += 1) target = path.join(APP_DIR, `${path.basename(entry.name, '.lnk')} (${index}).lnk`); fs.renameSync(source, target); moved += 1; } catch { failed += 1; } } appCacheLoaded = false; return { moved, failed, skipped }; });
+ipcMain.handle('app:launch', (event, id) => { assertTrustedEvent(event); const item = resolveVisibleApp(id); runPowerShell(`$payload=$env:ORBITPAD_PAYLOAD|ConvertFrom-Json;$shell=New-Object -ComObject WScript.Shell;$shortcut=$shell.CreateShortcut($payload.file);$target=$shortcut.TargetPath;if(-not ($target -match '^https?://' -or (Test-Path -LiteralPath $target -PathType Leaf))){throw '目标程序不存在。'};$params=@{FilePath=$target};if($shortcut.Arguments){$params.ArgumentList=$shortcut.Arguments};if($shortcut.WorkingDirectory -and (Test-Path -LiteralPath $shortcut.WorkingDirectory -PathType Container)){$params.WorkingDirectory=$shortcut.WorkingDirectory};Start-Process @params`, { file: item.file }); return true; });
+ipcMain.handle('app:recycle', (event, id) => { assertTrustedEvent(event); const item = resolveVisibleApp(id); runPowerShell(`$payload=$env:ORBITPAD_PAYLOAD|ConvertFrom-Json;Add-Type -AssemblyName Microsoft.VisualBasic;[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($payload.file,'OnlyErrorDialogs','SendToRecycleBin')`, { file: item.file }); appCache = appCache.filter((appItem) => normalizeId(appItem.id) !== normalizeId(item.id)); return true; });
+ipcMain.handle('desktop:sync', (event) => { assertTrustedEvent(event); let moved = 0; let failed = 0; let skipped = 0; let targets = new Map(); try { targets = readLnkTargets(DESKTOP_DIR); } catch { return { moved, failed, skipped }; } for (const entry of fs.readdirSync(DESKTOP_DIR, { withFileTypes: true })) { if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.lnk') || /^(applauncher|orbitpad|launchpad|reasonixlaunchpad)/i.test(path.basename(entry.name, '.lnk'))) continue; if (!isLaunchableTarget(targets.get(entry.name))) { skipped += 1; continue; } try { const source = path.join(DESKTOP_DIR, entry.name); let target = path.join(APP_DIR, entry.name); for (let index = 2; fs.existsSync(target); index += 1) target = path.join(APP_DIR, `${path.basename(entry.name, '.lnk')} (${index}).lnk`); fs.renameSync(source, target); moved += 1; } catch { failed += 1; } } appCacheLoaded = false; return { moved, failed, skipped }; });
 ipcMain.handle('wallpaper:desktop', (event) => { assertTrustedEvent(event); return desktopWallpaper(); });
 ipcMain.handle('wallpaper:list', (event, force) => { assertTrustedEvent(event); return wallpaperLibrary(Boolean(force)); });
 ipcMain.handle('settings:login-item', (event, options) => {

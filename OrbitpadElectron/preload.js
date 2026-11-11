@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('launchpad', {
+contextBridge.exposeInMainWorld('orbitpad', {
   listApps: () => ipcRenderer.invoke('apps:list'),
   refreshApps: () => ipcRenderer.invoke('apps:refresh'),
   getAppDiagnostics: () => ipcRenderer.invoke('apps:diagnostics'),

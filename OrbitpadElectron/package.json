@@ -1,8 +1,8 @@
 {
-  "name": "launchpad",
-  "version": "1.0.0",
+  "name": "orbitpad",
+  "version": "2.0.0",
   "private": true,
-  "description": "A macOS Launchpad-inspired Windows desktop app",
+  "description": "Orbitpad - a macOS Launchpad-inspired Windows app launcher",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -11,7 +11,7 @@
     "verify": "npm run check && npm test && npm run verify:source",
     "verify:source": "node ../verify_source.js",
     "verify:packaged": "node ../verify_packaged.js",
-    "package": "electron-packager . Launchpad --platform=win32 --arch=x64 --out=dist --overwrite --prune=true --icon=assets/icon.ico"
+    "package": "electron-packager . Orbitpad --platform=win32 --arch=x64 --out=dist --overwrite --prune=true --icon=assets/icon.ico"
   },
   "devDependencies": {
     "electron": "^35.0.0",

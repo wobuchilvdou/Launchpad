@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const root = path.join(__dirname, 'LaunchpadElectron');
+const root = path.join(__dirname, 'OrbitpadElectron');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const compact = (text) => String(text).replace(/\s+/g, '');
 const has = (text, needle) => compact(text).includes(compact(needle));
