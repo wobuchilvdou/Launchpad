@@ -11,7 +11,7 @@
     "verify": "npm run check && npm test && npm run verify:source",
     "verify:source": "node ../verify_source.js",
     "verify:packaged": "node ../verify_packaged.js",
-    "package": "electron-packager . Launchpad --platform=win32 --arch=x64 --out=dist --overwrite --prune=true"
+    "package": "electron-packager . Launchpad --platform=win32 --arch=x64 --out=dist --overwrite --prune=true --icon=assets/icon.ico"
   },
   "devDependencies": {
     "electron": "^35.0.0",

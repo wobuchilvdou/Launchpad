@@ -1,5 +1,5 @@
 $shortcutPath = 'D:\Desktop\Launchpad.lnk'
-$backupPath = 'D:\Desktop\Launchpad-Backup.lnk'
+$backupPath = Join-Path $env:TEMP 'Launchpad-Desktop-Backup.lnk'
 $candidates = @(
     (Join-Path $PSScriptRoot 'dist\Launchpad-win32-x64\Launchpad.exe'),
     (Join-Path $PSScriptRoot '..\..\Launchpad.exe'),
